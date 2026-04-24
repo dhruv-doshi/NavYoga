@@ -56,6 +56,15 @@ export default function PoseCanvas({
   const rafRef = useRef<number>(0);
   const [mpReady, setMpReady] = useState(false);
   const [mpError, setMpError] = useState<string | null>(null);
+  const lastHadLandmarksRef = useRef<boolean | null>(null);
+
+  // Refs for props that change frequently but shouldn't restart the RAF loop
+  const jointColorsRef = useRef(jointColors);
+  const onLandmarksRef = useRef(onLandmarks);
+  const onAnglesRef = useRef(onAngles);
+  jointColorsRef.current = jointColors;
+  onLandmarksRef.current = onLandmarks;
+  onAnglesRef.current = onAngles;
 
   // -------------------------------------------------------------------------
   // Initialize MediaPipe once
@@ -64,9 +73,13 @@ export default function PoseCanvas({
   useEffect(() => {
     let cancelled = false;
 
+    console.log("[PoseCanvas] mounting — starting MediaPipe init");
     initPoseLandmarker()
       .then(() => {
-        if (!cancelled) setMpReady(true);
+        if (!cancelled) {
+          console.log("[PoseCanvas] MediaPipe ready — detection loop will start");
+          setMpReady(true);
+        }
       })
       .catch((err) => {
         if (!cancelled) {
@@ -103,8 +116,19 @@ export default function PoseCanvas({
     const now = performance.now();
     const landmarks = detectPose(video, now);
 
+    // Log only on landmark detection state changes (appear / disappear)
+    const hasLandmarks = landmarks !== null && landmarks.length > 0;
+    if (hasLandmarks !== lastHadLandmarksRef.current) {
+      if (hasLandmarks) {
+        console.log("[PoseCanvas] Pose appeared in frame — %d landmarks", landmarks!.length);
+      } else {
+        console.log("[PoseCanvas] Pose lost / no landmarks in frame");
+      }
+      lastHadLandmarksRef.current = hasLandmarks;
+    }
+
     // Draw skeleton (clears canvas first)
-    drawSkeleton(ctx, landmarks ?? [], width, height, jointColors);
+    drawSkeleton(ctx, landmarks ?? [], width, height, jointColorsRef.current);
 
     if (landmarks) {
       const angles = computeAngles(landmarks);
@@ -113,15 +137,15 @@ export default function PoseCanvas({
         drawAngleOverlay(ctx, landmarks, angles, width, height);
       }
 
-      onLandmarks?.(landmarks);
-      onAngles?.(angles);
+      onLandmarksRef.current?.(landmarks);
+      onAnglesRef.current?.(angles);
     } else {
-      onLandmarks?.(null);
-      onAngles?.({});
+      onLandmarksRef.current?.(null);
+      onAnglesRef.current?.({});
     }
 
     rafRef.current = requestAnimationFrame(runLoop);
-  }, [videoElement, dimensions, mpReady, showDebugAngles, jointColors, onLandmarks, onAngles]);
+  }, [videoElement, dimensions, mpReady, showDebugAngles]);
 
   // -------------------------------------------------------------------------
   // Start / stop loop when video element or mpReady changes
@@ -130,9 +154,11 @@ export default function PoseCanvas({
   useEffect(() => {
     if (!videoElement || !mpReady) return;
 
+    console.log("[PoseCanvas] Starting detection loop (video: %dx%d)", videoElement.videoWidth, videoElement.videoHeight);
     rafRef.current = requestAnimationFrame(runLoop);
 
     return () => {
+      console.log("[PoseCanvas] Stopping detection loop");
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
   }, [videoElement, mpReady, runLoop]);
@@ -143,6 +169,7 @@ export default function PoseCanvas({
 
   useEffect(() => {
     return () => {
+      console.log("[PoseCanvas] unmounting — cancelling RAF and disposing PoseLandmarker");
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       disposePoseLandmarker();
     };

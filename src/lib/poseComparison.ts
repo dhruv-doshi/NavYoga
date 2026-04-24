@@ -20,6 +20,8 @@ export function comparePose(
   angles: AngleMap,
   pose: PoseDefinition
 ): PoseComparisonResult {
+  console.log("[PoseComparison] comparePose: pose=%s, inputAngles=%o", pose.id, angles);
+
   const joints: JointComparisonResult[] = [];
   const corrections: string[] = [];
 
@@ -29,28 +31,40 @@ export function comparePose(
 
     let status: JointStatus;
     let correctionText: string | null = null;
+    let deviation = 0;
 
     if (angleDeg === undefined) {
       status = "unknown";
+      console.debug("[PoseComparison]   %s → unknown (not in angleMap)", joint);
     } else if (angleDeg < min) {
       status = "too_low";
+      deviation = min - angleDeg;
       correctionText = correctionLow;
       corrections.push(correctionText);
+      console.debug("[PoseComparison]   %s → too_low  (%.1f° < min %.1f°, deviation %.1f°)", joint, angleDeg, min, deviation);
     } else if (angleDeg > max) {
       status = "too_high";
+      deviation = angleDeg - max;
       correctionText = correctionHigh;
       corrections.push(correctionText);
+      console.debug("[PoseComparison]   %s → too_high (%.1f° > max %.1f°, deviation %.1f°)", joint, angleDeg, max, deviation);
     } else {
       status = "correct";
+      console.debug("[PoseComparison]   %s → correct  (%.1f° in [%.1f°, %.1f°])", joint, angleDeg, min, max);
     }
 
-    joints.push({ joint, status, angleDeg: angleDeg ?? 0, correctionText });
+    joints.push({ joint, status, angleDeg: angleDeg ?? 0, deviation, correctionText });
   }
 
   // Score: only count joints that were actually detected (not "unknown")
   const evaluated = joints.filter((j) => j.status !== "unknown");
   const correct = evaluated.filter((j) => j.status === "correct").length;
   const score = evaluated.length > 0 ? Math.round((correct / evaluated.length) * 100) : 0;
+
+  console.log(
+    "[PoseComparison] result: score=%d%% (%d/%d correct), corrections=%d, unknowns=%d",
+    score, correct, evaluated.length, corrections.length, joints.length - evaluated.length
+  );
 
   return { poseId: pose.id, joints, score, corrections };
 }
@@ -74,5 +88,6 @@ export function comparisonToJointColors(
       map[j.joint] = "default";
     }
   }
+  console.debug("[PoseComparison] jointColors: %o", map);
   return map;
 }

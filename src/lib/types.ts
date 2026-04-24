@@ -112,6 +112,8 @@ export interface JointComparisonResult {
   joint: string;
   status: JointStatus;
   angleDeg: number;
+  /** How many degrees outside the target range (0 if correct/unknown) */
+  deviation: number;
   /** The corrective instruction to show if status is not "correct" */
   correctionText: string | null;
 }

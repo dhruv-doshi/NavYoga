@@ -105,6 +105,7 @@ export default function Camera({ onVideoReady, className = "" }: CameraProps) {
     let localStream: MediaStream | null = null;
 
     async function start() {
+      console.log("[Camera] start(): requesting camera access (trigger=%d)", startTrigger);
       setCameraState({ status: "requesting" });
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -119,16 +120,24 @@ export default function Camera({ onVideoReady, className = "" }: CameraProps) {
         // Component unmounted (or effect re-ran) while waiting for permission —
         // release immediately so the OS camera indicator goes away.
         if (!active) {
+          console.log("[Camera] component unmounted during getUserMedia; stopping tracks");
           stream.getTracks().forEach((t) => t.stop());
           return;
         }
 
+        const track = stream.getVideoTracks()[0];
+        console.log("[Camera] stream acquired. Track: %s, settings: %o", track?.label, track?.getSettings());
+
         localStream = stream;
 
         const video = videoRef.current;
-        if (!video) return;
+        if (!video) {
+          console.warn("[Camera] videoRef.current is null after stream acquisition");
+          return;
+        }
 
         video.srcObject = stream;
+        console.log("[Camera] waiting for video metadata...");
 
         await new Promise<void>((resolve) => {
           video.onloadedmetadata = () => resolve();
@@ -136,18 +145,22 @@ export default function Camera({ onVideoReady, className = "" }: CameraProps) {
 
         if (!active) return;
 
+        console.log("[Camera] metadata loaded: %dx%d. Calling play()...", video.videoWidth, video.videoHeight);
         await video.play();
 
         if (!active) return;
 
         setCameraState({ status: "active" });
+        console.log("[Camera] active. Calling onVideoReady with dims %dx%d", video.videoWidth, video.videoHeight);
         onVideoReady?.(video, {
           width:  video.videoWidth,
           height: video.videoHeight,
         });
       } catch (err) {
         if (active) {
-          setCameraState({ status: "error", message: describeError(err) });
+          const message = describeError(err);
+          console.error("[Camera] error:", err, "→ user message:", message);
+          setCameraState({ status: "error", message });
         }
       }
     }
@@ -155,6 +168,7 @@ export default function Camera({ onVideoReady, className = "" }: CameraProps) {
     start();
 
     return () => {
+      console.log("[Camera] cleanup: stopping stream and resetting video element");
       // Cancel any in-flight start() and release the stream immediately.
       active = false;
       if (localStream) {

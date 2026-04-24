@@ -88,7 +88,7 @@ const CORRECTED_JOINTS: Array<[string, number, number, number]> = [
 // Visibility threshold — skip landmarks that MediaPipe is not confident about
 // ---------------------------------------------------------------------------
 
-const VISIBILITY_THRESHOLD = 0.5;
+const VISIBILITY_THRESHOLD = 0.3;
 
 /**
  * Compute all named joint angles from a set of 33 MediaPipe landmarks.
@@ -99,13 +99,17 @@ const VISIBILITY_THRESHOLD = 0.5;
  */
 export function computeAngles(landmarks: Landmark[]): AngleMap {
   const angles: AngleMap = {};
+  const skipped: string[] = [];
 
   for (const [name, idxA, idxB, idxC] of CORRECTED_JOINTS) {
     const a = landmarks[idxA];
     const b = landmarks[idxB];
     const c = landmarks[idxC];
 
-    if (!a || !b || !c) continue;
+    if (!a || !b || !c) {
+      skipped.push(`${name}(missing landmark)`);
+      continue;
+    }
 
     // Skip if any landmark has low confidence
     if (
@@ -113,11 +117,20 @@ export function computeAngles(landmarks: Landmark[]): AngleMap {
       (b.visibility ?? 1) < VISIBILITY_THRESHOLD ||
       (c.visibility ?? 1) < VISIBILITY_THRESHOLD
     ) {
+      skipped.push(`${name}(low-visibility: ${[a.visibility?.toFixed(2), b.visibility?.toFixed(2), c.visibility?.toFixed(2)].join(",")})`);
       continue;
     }
 
     angles[name] = Math.round(calcAngle(a, b, c) * 10) / 10;
   }
+
+  console.debug(
+    "[Angles] computeAngles: %d/%d joints computed. Angles: %o | Skipped: %s",
+    Object.keys(angles).length,
+    CORRECTED_JOINTS.length,
+    angles,
+    skipped.length > 0 ? skipped.join(", ") : "none"
+  );
 
   return angles;
 }

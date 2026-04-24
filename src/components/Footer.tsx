@@ -34,7 +34,7 @@ export default function Footer() {
                 className="text-base tracking-wide"
                 style={{ fontFamily: "var(--font-playfair)", color: "var(--text-primary)" }}
               >
-                Asana
+                NavYoga
               </span>
             </div>
             <p
@@ -82,7 +82,7 @@ export default function Footer() {
             className="text-xs"
             style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-dm-sans)" }}
           >
-            © {new Date().getFullYear()} Asana
+            © {new Date().getFullYear()} NavYoga
           </p>
         </div>
       </div>

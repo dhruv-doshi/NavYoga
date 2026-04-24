@@ -17,6 +17,8 @@ interface FeedbackPanelProps {
   headline: string;
   poseSelected: boolean;
   poseDetected: boolean;
+  /** True once comparePose has produced a result for the current frame */
+  analyzed: boolean;
 }
 
 export default function FeedbackPanel({
@@ -24,6 +26,7 @@ export default function FeedbackPanel({
   headline,
   poseSelected,
   poseDetected,
+  analyzed,
 }: FeedbackPanelProps) {
   // No pose selected
   if (!poseSelected) {
@@ -44,6 +47,24 @@ export default function FeedbackPanel({
         </svg>
         <p className="text-sm" style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-dm-sans)", fontStyle: "italic" }}>
           Select a target pose above to start getting feedback
+        </p>
+      </div>
+    );
+  }
+
+  // Pose selected, body detected, but angles not yet computed (low visibility)
+  if (poseDetected && !analyzed) {
+    return (
+      <div
+        className="flex-1 rounded-lg flex flex-col items-center justify-center gap-2 p-4 text-center"
+        style={{
+          background: "var(--bg-raised)",
+          border: "1px solid var(--border)",
+          minHeight: "8rem",
+        }}
+      >
+        <p className="text-sm" style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-dm-sans)", fontStyle: "italic" }}>
+          Analyzing pose… ensure you are well-lit and fully in frame
         </p>
       </div>
     );
@@ -110,16 +131,20 @@ export default function FeedbackPanel({
           <div
             key={`${item.joint}-${i}`}
             className="flex items-start gap-3 px-3 py-2.5 rounded-lg"
-            style={{
-              background: "rgba(192,97,74,0.07)",
-              border: "1px solid rgba(192,97,74,0.18)",
-            }}
+            style={
+              item.severity === "error"
+                ? { background: "rgba(192,97,74,0.07)", border: "1px solid rgba(192,97,74,0.18)" }
+                : { background: "rgba(200,150,48,0.07)", border: "1px solid rgba(200,150,48,0.2)" }
+            }
           >
-            {/* Joint label */}
+            {/* Severity dot + joint label */}
             <div className="flex flex-col gap-0.5 flex-shrink-0" style={{ minWidth: "5rem" }}>
               <span
                 className="text-[10px] font-semibold uppercase tracking-wide"
-                style={{ color: "var(--joint-error)", fontFamily: "var(--font-dm-sans)" }}
+                style={{
+                  color: item.severity === "error" ? "var(--joint-error)" : "#c89630",
+                  fontFamily: "var(--font-dm-sans)",
+                }}
               >
                 {item.joint}
               </span>

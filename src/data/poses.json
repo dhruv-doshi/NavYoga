@@ -247,6 +247,65 @@
     ]
   },
   {
+    "id": "prayer",
+    "name": "Prayer Pose",
+    "sanskrit": "Anjali Mudra",
+    "description": "Standing upright with palms pressed together at the chest and elbows extended out horizontally. A grounding pose that cultivates focus and inner stillness.",
+    "difficulty": "beginner",
+    "imageUrl": "/images/prayer.svg",
+    "focus": ["Posture", "Balance", "Focus"],
+    "angles": [
+      {
+        "joint": "leftElbow",
+        "landmarks": [11, 13, 15],
+        "min": 75,
+        "max": 105,
+        "correctionLow": "Bend your left elbow more — bring your forearm toward horizontal",
+        "correctionHigh": "Bend your left elbow to about 90° — don't let it drop"
+      },
+      {
+        "joint": "rightElbow",
+        "landmarks": [12, 14, 16],
+        "min": 75,
+        "max": 105,
+        "correctionLow": "Bend your right elbow more — bring your forearm toward horizontal",
+        "correctionHigh": "Bend your right elbow to about 90° — don't let it drop"
+      },
+      {
+        "joint": "leftShoulder",
+        "landmarks": [13, 11, 23],
+        "min": 65,
+        "max": 110,
+        "correctionLow": "Raise your left arm — lift the elbow to shoulder height",
+        "correctionHigh": "Lower your left shoulder — keep the elbow at chest level"
+      },
+      {
+        "joint": "rightShoulder",
+        "landmarks": [14, 12, 24],
+        "min": 65,
+        "max": 110,
+        "correctionLow": "Raise your right arm — lift the elbow to shoulder height",
+        "correctionHigh": "Lower your right shoulder — keep the elbow at chest level"
+      },
+      {
+        "joint": "leftKnee",
+        "landmarks": [23, 25, 27],
+        "min": 165,
+        "max": 180,
+        "correctionLow": "Straighten your left knee — stand tall",
+        "correctionHigh": "Soften your left knee slightly to avoid locking"
+      },
+      {
+        "joint": "rightKnee",
+        "landmarks": [24, 26, 28],
+        "min": 165,
+        "max": 180,
+        "correctionLow": "Straighten your right knee — stand tall",
+        "correctionHigh": "Soften your right knee slightly to avoid locking"
+      }
+    ]
+  },
+  {
     "id": "triangle",
     "name": "Triangle Pose",
     "sanskrit": "Trikonasana",

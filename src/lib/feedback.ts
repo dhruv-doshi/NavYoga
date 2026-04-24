@@ -9,7 +9,7 @@
 
 import type { PoseComparisonResult } from "./types";
 
-const MAX_FEEDBACK_ITEMS = 4;
+const MAX_FEEDBACK_ITEMS = 3;
 
 export interface FeedbackItem {
   joint: string;
@@ -34,22 +34,27 @@ function formatJointLabel(joint: string): string {
  * @param result - Output of comparePose()
  * @returns Array of up to MAX_FEEDBACK_ITEMS FeedbackItem objects
  */
+const WARNING_THRESHOLD_DEG = 15;
+
 export function generateFeedback(result: PoseComparisonResult): FeedbackItem[] {
-  const items: FeedbackItem[] = [];
+  const incorrectJoints = result.joints
+    .filter((j) => (j.status === "too_low" || j.status === "too_high") && j.correctionText)
+    .sort((a, b) => b.deviation - a.deviation); // worst first
 
-  for (const joint of result.joints) {
-    if (joint.status === "correct" || joint.status === "unknown") continue;
-    if (!joint.correctionText) continue;
+  console.log(
+    "[Feedback] generateFeedback: %d incorrect joints total, showing top %d. Sorted by deviation: %s",
+    incorrectJoints.length,
+    MAX_FEEDBACK_ITEMS,
+    incorrectJoints.map((j) => `${j.joint}(${j.deviation.toFixed(1)}°)`).join(", ") || "none"
+  );
 
-    items.push({
-      joint: formatJointLabel(joint.joint),
-      message: joint.correctionText,
-      severity: "error",
-    });
+  const items = incorrectJoints.slice(0, MAX_FEEDBACK_ITEMS).map((joint) => ({
+    joint: formatJointLabel(joint.joint),
+    message: joint.correctionText!,
+    severity: (joint.deviation > WARNING_THRESHOLD_DEG ? "error" : "warning") as "error" | "warning",
+  }));
 
-    if (items.length >= MAX_FEEDBACK_ITEMS) break;
-  }
-
+  console.debug("[Feedback] feedbackItems: %o", items);
   return items;
 }
 
@@ -57,9 +62,13 @@ export function generateFeedback(result: PoseComparisonResult): FeedbackItem[] {
  * Return a single headline string summarising the pose state.
  */
 export function getFeedbackHeadline(score: number): string {
-  if (score === 100) return "Perfect alignment!";
-  if (score >= 80) return "Great form — minor adjustments needed";
-  if (score >= 60) return "Getting there — focus on the corrections below";
-  if (score >= 40) return "Keep working — several joints need attention";
-  return "Work on your foundational alignment first";
+  const headline =
+    score === 100 ? "Perfect alignment!" :
+    score >= 80 ? "Great form — minor adjustments needed" :
+    score >= 60 ? "Getting there — focus on the corrections below" :
+    score >= 40 ? "Keep working — several joints need attention" :
+    "Work on your foundational alignment first";
+
+  console.log("[Feedback] getFeedbackHeadline: score=%d → '%s'", score, headline);
+  return headline;
 }

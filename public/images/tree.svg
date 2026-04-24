@@ -1,0 +1,36 @@
+<svg viewBox="0 0 130 200" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="#7FA87C" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+  <!-- head -->
+  <circle cx="58" cy="18" r="10" stroke="#7FA87C"/>
+  <!-- neck -->
+  <line x1="58" y1="28" x2="58" y2="40"/>
+  <!-- shoulders -->
+  <line x1="38" y1="48" x2="78" y2="48"/>
+  <line x1="58" y1="40" x2="58" y2="48"/>
+  <!-- arms raised in arch -->
+  <line x1="38" y1="48" x2="28" y2="26"/>
+  <line x1="28" y1="26" x2="40" y2="10"/>
+  <line x1="78" y1="48" x2="88" y2="26"/>
+  <line x1="88" y1="26" x2="76" y2="10"/>
+  <!-- spine -->
+  <line x1="58" y1="48" x2="58" y2="112"/>
+  <!-- hips -->
+  <line x1="46" y1="112" x2="70" y2="112"/>
+  <!-- standing left leg — straight -->
+  <line x1="46" y1="112" x2="46" y2="158"/>
+  <line x1="46" y1="158" x2="46" y2="188"/>
+  <!-- right leg — knee bent out to side, foot at inner left thigh -->
+  <line x1="70" y1="112" x2="94" y2="140"/>
+  <line x1="94" y1="140" x2="58" y2="152"/>
+  <!-- foot (standing) -->
+  <line x1="46" y1="188" x2="34" y2="188"/>
+  <line x1="46" y1="188" x2="58" y2="188"/>
+  <!-- joint dots -->
+  <circle cx="38" cy="48" r="3" fill="#7FA87C" stroke="none"/>
+  <circle cx="78" cy="48" r="3" fill="#7FA87C" stroke="none"/>
+  <circle cx="28" cy="26" r="3" fill="#7FA87C" stroke="none"/>
+  <circle cx="88" cy="26" r="3" fill="#7FA87C" stroke="none"/>
+  <circle cx="46" cy="112" r="3" fill="#7FA87C" stroke="none"/>
+  <circle cx="70" cy="112" r="3" fill="#7FA87C" stroke="none"/>
+  <circle cx="46" cy="158" r="3" fill="#7FA87C" stroke="none"/>
+  <circle cx="94" cy="140" r="3" fill="#7FA87C" stroke="none"/>
+</svg>

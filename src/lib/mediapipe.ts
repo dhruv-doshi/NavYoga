@@ -34,13 +34,23 @@ let initPromise: Promise<PoseLandmarker> | null = null;
  * Returns the shared instance after the WASM runtime and model are loaded.
  */
 export async function initPoseLandmarker(): Promise<PoseLandmarker> {
-  if (poseLandmarker) return poseLandmarker;
-  if (initPromise) return initPromise;
+  if (poseLandmarker) {
+    console.log("[MediaPipe] initPoseLandmarker: already initialized, reusing instance");
+    return poseLandmarker;
+  }
+  if (initPromise) {
+    console.log("[MediaPipe] initPoseLandmarker: init already in progress, awaiting...");
+    return initPromise;
+  }
+
+  console.log("[MediaPipe] initPoseLandmarker: starting initialization");
 
   initPromise = (async () => {
+    console.log("[MediaPipe] Loading WASM runtime from CDN...");
     const vision = await FilesetResolver.forVisionTasks(
       "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.34/wasm"
     );
+    console.log("[MediaPipe] WASM runtime loaded. Creating PoseLandmarker...");
 
     poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
       baseOptions: {
@@ -55,6 +65,7 @@ export async function initPoseLandmarker(): Promise<PoseLandmarker> {
       minTrackingConfidence: 0.5,
     });
 
+    console.log("[MediaPipe] PoseLandmarker ready. Model: pose_landmarker_lite, delegate: GPU");
     return poseLandmarker;
   })();
 
@@ -73,23 +84,43 @@ export async function initPoseLandmarker(): Promise<PoseLandmarker> {
  * @param timestampMs - Current timestamp in milliseconds (from performance.now())
  * @returns Array of 33 landmarks for the first detected person, or null if none.
  */
+let _lastDetectionHadLandmarks: boolean | null = null;
+
 export function detectPose(
   videoEl: HTMLVideoElement,
   timestampMs: number
 ): Landmark[] | null {
-  if (!poseLandmarker) return null;
-  if (videoEl.readyState < 2) return null;
+  if (!poseLandmarker) {
+    console.warn("[MediaPipe] detectPose called before PoseLandmarker was initialized");
+    return null;
+  }
+  if (videoEl.readyState < 2) {
+    console.debug("[MediaPipe] detectPose: video not ready (readyState=%d)", videoEl.readyState);
+    return null;
+  }
 
   let result: PoseLandmarkerResult;
   try {
     result = poseLandmarker.detectForVideo(videoEl, timestampMs);
-  } catch {
+  } catch (err) {
+    console.error("[MediaPipe] detectForVideo threw:", err);
     return null;
   }
 
-  if (!result.landmarks || result.landmarks.length === 0) return null;
+  const hasLandmarks = !!(result.landmarks && result.landmarks.length > 0);
 
-  // Return the 33 landmarks for the first person as our Landmark type
+  // Only log on state transitions (pose appears / disappears) to avoid flooding
+  if (hasLandmarks !== _lastDetectionHadLandmarks) {
+    if (hasLandmarks) {
+      console.log("[MediaPipe] Pose detected — %d landmarks on first person", result.landmarks[0].length);
+    } else {
+      console.log("[MediaPipe] No pose detected in frame");
+    }
+    _lastDetectionHadLandmarks = hasLandmarks;
+  }
+
+  if (!hasLandmarks) return null;
+
   return result.landmarks[0] as Landmark[];
 }
 
@@ -97,7 +128,9 @@ export function detectPose(
  * Release resources. Call when the practice page unmounts.
  */
 export function disposePoseLandmarker(): void {
+  console.log("[MediaPipe] disposePoseLandmarker: releasing resources");
   poseLandmarker?.close();
   poseLandmarker = null;
   initPromise = null;
+  _lastDetectionHadLandmarks = null;
 }

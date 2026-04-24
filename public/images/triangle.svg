@@ -1,0 +1,37 @@
+<svg viewBox="0 0 210 190" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="#7FA87C" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+  <!-- head (tilted left) -->
+  <circle cx="85" cy="30" r="10" stroke="#7FA87C"/>
+  <!-- neck (angled) -->
+  <line x1="85" y1="40" x2="78" y2="52"/>
+  <!-- shoulder line (tilted) -->
+  <line x1="55" y1="60" x2="105" y2="44"/>
+  <line x1="78" y1="52" x2="80" y2="52"/>
+  <!-- right arm pointing up -->
+  <line x1="105" y1="44" x2="128" y2="22"/>
+  <line x1="128" y1="22" x2="140" y2="10"/>
+  <!-- left arm pointing down toward floor -->
+  <line x1="55" y1="60" x2="38" y2="92"/>
+  <line x1="38" y1="92" x2="30" y2="116"/>
+  <!-- torso (angled side bend) -->
+  <line x1="80" y1="52" x2="78" y2="108"/>
+  <!-- hips -->
+  <line x1="55" y1="108" x2="102" y2="108"/>
+  <!-- left leg — straight, angled left -->
+  <line x1="55" y1="108" x2="32" y2="150"/>
+  <line x1="32" y1="150" x2="22" y2="178"/>
+  <!-- right leg — straight, angled right -->
+  <line x1="102" y1="108" x2="140" y2="148"/>
+  <line x1="140" y1="148" x2="158" y2="178"/>
+  <!-- feet -->
+  <line x1="22" y1="178" x2="8" y2="178"/>
+  <line x1="158" y1="178" x2="175" y2="178"/>
+  <!-- joint dots -->
+  <circle cx="55" cy="60" r="3" fill="#7FA87C" stroke="none"/>
+  <circle cx="105" cy="44" r="3" fill="#7FA87C" stroke="none"/>
+  <circle cx="128" cy="22" r="3" fill="#7FA87C" stroke="none"/>
+  <circle cx="38" cy="92" r="3" fill="#7FA87C" stroke="none"/>
+  <circle cx="55" cy="108" r="3" fill="#7FA87C" stroke="none"/>
+  <circle cx="102" cy="108" r="3" fill="#7FA87C" stroke="none"/>
+  <circle cx="32" cy="150" r="3" fill="#7FA87C" stroke="none"/>
+  <circle cx="140" cy="148" r="3" fill="#7FA87C" stroke="none"/>
+</svg>

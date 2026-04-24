@@ -117,7 +117,7 @@ export default function HomePage() {
               fontWeight: 300,
             }}
           >
-            Your camera becomes a yoga instructor. Asana uses MediaPipe Pose to
+            Your camera becomes a yoga instructor. NavYoga uses MediaPipe Pose to
             detect your body landmarks, calculate joint angles, and guide you
             into correct alignment — entirely in your browser.
           </p>
@@ -224,7 +224,7 @@ export default function HomePage() {
               className="text-3xl sm:text-4xl"
               style={{ fontFamily: "var(--font-playfair)" }}
             >
-              Six foundational poses
+              Foundational poses
             </h2>
           </div>
           <Link

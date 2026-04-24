@@ -56,7 +56,7 @@ export default function Header() {
         <Link
           href="/"
           className="flex items-center gap-2 group"
-          aria-label="Asana — home"
+          aria-label="NavYoga — home"
         >
           {/* Decorative leaf mark */}
           <span
@@ -75,7 +75,7 @@ export default function Header() {
             className="text-lg tracking-wide"
             style={{ fontFamily: "var(--font-playfair)", color: "var(--text-primary)" }}
           >
-            Asana
+            NavYoga
           </span>
         </Link>
 

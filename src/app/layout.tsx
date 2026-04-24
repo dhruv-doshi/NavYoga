@@ -42,8 +42,8 @@ const dmSans = DM_Sans({
 
 export const metadata: Metadata = {
   title: {
-    default: "Asana — Yoga Pose Estimation",
-    template: "%s · Asana",
+    default: "NavYoga — Yoga Pose Estimation",
+    template: "%s · NavYoga",
   },
   description:
     "Real-time yoga pose analysis and correction using your device camera. " +
@@ -51,16 +51,16 @@ export const metadata: Metadata = {
     "entirely in your browser with zero data upload.",
   keywords: ["yoga", "pose estimation", "mediapipe", "body tracking", "fitness", "asana"],
   openGraph: {
-    title: "Asana — Yoga Pose Estimation",
+    title: "NavYoga — Yoga Pose Estimation",
     description:
       "Real-time yoga pose correction in your browser. No account, no uploads.",
     type: "website",
     locale: "en_US",
-    siteName: "Asana",
+    siteName: "NavYoga",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Asana — Yoga Pose Estimation",
+    title: "NavYoga — Yoga Pose Estimation",
     description: "Real-time yoga pose correction in your browser. No account, no uploads.",
   },
   robots: {

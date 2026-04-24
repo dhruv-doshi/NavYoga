@@ -28,7 +28,7 @@ import type { JointColorMap } from "@/lib/drawing";
 import posesData from "@/data/poses.json";
 
 const POSES = posesData as unknown as PoseDefinition[];
-const DEBOUNCE_MS = 500;
+const SCORE_TOLERANCE = 20;
 
 // ---------------------------------------------------------------------------
 // Component
@@ -44,15 +44,18 @@ export default function PracticePage() {
 
   // Phase 7–10 state
   const [selectedPose, setSelectedPose] = useState<PoseDefinition | null>(null);
+  const selectedPoseRef = useRef<PoseDefinition | null>(null);
+  selectedPoseRef.current = selectedPose;
+  const lastDisplayedScoreRef = useRef<number>(-1);
   const [comparisonResult, setComparisonResult] = useState<PoseComparisonResult | null>(null);
   const [jointColors, setJointColors] = useState<JointColorMap | undefined>(undefined);
   const [feedbackItems, setFeedbackItems] = useState<FeedbackItem[]>([]);
   const [feedbackHeadline, setFeedbackHeadline] = useState("");
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Called by Camera when stream is live
   const handleVideoReady = useCallback(
     (el: HTMLVideoElement, dims: VideoDimensions) => {
+      console.log("[Practice] handleVideoReady: video element ready, dims=%dx%d", dims.width, dims.height);
       setVideoEl(el);
       setVideoDims(dims);
     },
@@ -62,6 +65,8 @@ export default function PracticePage() {
   // Toggle camera on/off
   const toggleCamera = useCallback(() => {
     setCameraActive((prev) => {
+      const next = !prev;
+      console.log("[Practice] toggleCamera: %s → %s", prev ? "on" : "off", next ? "on" : "off");
       if (prev) {
         setVideoEl(null);
         setLandmarks(null);
@@ -71,33 +76,35 @@ export default function PracticePage() {
         setFeedbackItems([]);
         setFeedbackHeadline("");
       }
-      return !prev;
+      return next;
     });
   }, []);
 
-  // Run pose comparison whenever angles or selectedPose change (debounced)
+  // Clear comparison results whenever the selected pose changes
   useEffect(() => {
-    if (!selectedPose || Object.keys(angles).length === 0) {
-      setComparisonResult(null);
-      setJointColors(undefined);
-      setFeedbackItems([]);
-      setFeedbackHeadline("");
-      return;
-    }
+    lastDisplayedScoreRef.current = -1;
+    setComparisonResult(null);
+    setJointColors(undefined);
+    setFeedbackItems([]);
+    setFeedbackHeadline("");
+  }, [selectedPose]);
 
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      const result = comparePose(angles, selectedPose);
+  // Stable callback: runs comparePose on every angles update from PoseCanvas.
+  // Reads selectedPose via ref so it never needs to be in the dep array,
+  // which would recreate the callback and restart the RAF loop.
+  const handleAngles = useCallback((newAngles: AngleMap) => {
+    setAngles(newAngles);
+    const pose = selectedPoseRef.current;
+    if (!pose || Object.keys(newAngles).length === 0) return;
+    const result = comparePose(newAngles, pose);
+    if (Math.abs(result.score - lastDisplayedScoreRef.current) >= SCORE_TOLERANCE) {
+      lastDisplayedScoreRef.current = result.score;
       setComparisonResult(result);
       setJointColors(comparisonToJointColors(result));
       setFeedbackItems(generateFeedback(result));
       setFeedbackHeadline(getFeedbackHeadline(result.score));
-    }, DEBOUNCE_MS);
-
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [angles, selectedPose]);
+    }
+  }, []);
 
   const poseDetected = landmarks !== null && landmarks.length > 0;
   const score = comparisonResult?.score ?? 0;
@@ -154,7 +161,7 @@ export default function PracticePage() {
             showDebugAngles={showDebug}
             jointColors={jointColors}
             onLandmarks={setLandmarks}
-            onAngles={setAngles}
+            onAngles={handleAngles}
           />
         )}
 
@@ -164,11 +171,12 @@ export default function PracticePage() {
             <div
               className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold"
               style={{
-                background: "rgba(12,15,10,0.75)",
-                border: "1px solid var(--border)",
-                color: "var(--text-secondary)",
+                background: "rgba(12,15,10,0.85)",
+                border: "1px solid rgba(255,255,255,0.15)",
+                color: "#ffffff",
                 fontFamily: "var(--font-dm-sans)",
-                backdropFilter: "blur(8px)",
+                backdropFilter: "blur(10px)",
+                textShadow: "0 1px 3px rgba(0,0,0,0.6)",
               }}
               aria-live="polite"
             >
@@ -188,11 +196,12 @@ export default function PracticePage() {
             <div
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
               style={{
-                background: "rgba(12,15,10,0.75)",
-                border: "1px solid var(--border)",
+                background: "rgba(12,15,10,0.85)",
+                border: "1px solid rgba(255,255,255,0.15)",
                 color: score >= 80 ? "var(--joint-correct)" : score >= 50 ? "#c89630" : "var(--joint-error)",
                 fontFamily: "var(--font-dm-sans)",
-                backdropFilter: "blur(8px)",
+                backdropFilter: "blur(10px)",
+                textShadow: "0 1px 3px rgba(0,0,0,0.6)",
                 transition: "color 400ms ease",
               }}
             >
@@ -208,9 +217,9 @@ export default function PracticePage() {
               onClick={() => setShowDebug((v) => !v)}
               className="px-3 py-1.5 rounded-full text-xs font-semibold transition-colors"
               style={{
-                background: showDebug ? "rgba(195,255,90,0.15)" : "rgba(12,15,10,0.75)",
-                border: showDebug ? "1px solid rgba(195,255,90,0.4)" : "1px solid var(--border)",
-                color: showDebug ? "rgba(195,255,90,0.9)" : "var(--text-secondary)",
+                background: showDebug ? "rgba(195,255,90,0.15)" : "rgba(12,15,10,0.85)",
+                border: showDebug ? "1px solid rgba(195,255,90,0.4)" : "1px solid rgba(255,255,255,0.15)",
+                color: showDebug ? "rgba(195,255,90,0.9)" : "#ffffff",
                 fontFamily: "var(--font-dm-sans)",
                 backdropFilter: "blur(8px)",
               }}
@@ -257,16 +266,17 @@ export default function PracticePage() {
 
         {/* Privacy notice */}
         <div
-          className="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full text-xs"
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-full text-xs font-semibold"
           style={{
-            background: "rgba(12,15,10,0.6)",
-            color: "var(--text-tertiary)",
+            background: "rgba(12,15,10,0.9)",
+            color: "#ffffff",
             fontFamily: "var(--font-dm-sans)",
-            backdropFilter: "blur(8px)",
+            backdropFilter: "blur(12px)",
+            textShadow: "0 1px 2px rgba(0,0,0,0.5)",
             whiteSpace: "nowrap",
           }}
         >
-          Video processed locally · never uploaded
+          Video processed locally · NEVER UPLOADED
         </div>
       </div>
 
@@ -295,19 +305,41 @@ export default function PracticePage() {
           <PoseSelector
             poses={POSES}
             selectedId={selectedPose?.id ?? null}
-            onSelect={setSelectedPose}
+            onSelect={(pose) => {
+              console.log("[Practice] pose selected: %s (%s), %d angle constraints", pose?.id ?? "none", pose?.name ?? "", pose?.angles.length ?? 0);
+              setSelectedPose(pose);
+            }}
           />
           {selectedPose && (
-            <p
-              className="text-xs leading-relaxed"
-              style={{
-                color: "var(--text-tertiary)",
-                fontFamily: "var(--font-dm-sans)",
-                fontStyle: "italic",
-              }}
-            >
-              {selectedPose.description}
-            </p>
+            <div className="flex items-start gap-3">
+              {/* Pose illustration */}
+              <div
+                className="flex-shrink-0 rounded-lg overflow-hidden flex items-center justify-center"
+                style={{
+                  width: 72,
+                  height: 72,
+                  background: "var(--bg-raised)",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={selectedPose.imageUrl}
+                  alt={selectedPose.name}
+                  style={{ width: 60, height: 60, objectFit: "contain" }}
+                />
+              </div>
+              <p
+                className="text-xs leading-relaxed flex-1"
+                style={{
+                  color: "var(--text-tertiary)",
+                  fontFamily: "var(--font-dm-sans)",
+                  fontStyle: "italic",
+                }}
+              >
+                {selectedPose.description}
+              </p>
+            </div>
           )}
         </div>
 
@@ -324,7 +356,7 @@ export default function PracticePage() {
           >
             Alignment Score
           </h2>
-          <ScoreDisplay score={score} poseSelected={!!selectedPose} />
+          <ScoreDisplay score={score} poseSelected={!!selectedPose} analyzed={comparisonResult !== null} />
         </div>
 
         {/* ----------------------------------------------------------------
@@ -342,6 +374,7 @@ export default function PracticePage() {
             headline={feedbackHeadline}
             poseSelected={!!selectedPose}
             poseDetected={poseDetected}
+            analyzed={comparisonResult !== null}
           />
         </div>
 

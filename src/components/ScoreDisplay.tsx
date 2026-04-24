@@ -13,6 +13,8 @@
 interface ScoreDisplayProps {
   score: number;
   poseSelected: boolean;
+  /** True once comparePose has produced a result */
+  analyzed: boolean;
 }
 
 function scoreColor(score: number): string {
@@ -29,7 +31,7 @@ function scoreLabel(score: number): string {
   return "Off Pose";
 }
 
-export default function ScoreDisplay({ score, poseSelected }: ScoreDisplayProps) {
+export default function ScoreDisplay({ score, poseSelected, analyzed }: ScoreDisplayProps) {
   const RADIUS = 36;
   const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
   const clamped = Math.max(0, Math.min(100, score));
@@ -56,11 +58,11 @@ export default function ScoreDisplay({ score, poseSelected }: ScoreDisplayProps)
             cy="44"
             r={RADIUS}
             fill="none"
-            stroke={poseSelected ? color : "var(--bg-subtle)"}
+            stroke={poseSelected && analyzed ? color : "var(--bg-subtle)"}
             strokeWidth="7"
             strokeLinecap="round"
             strokeDasharray={CIRCUMFERENCE}
-            strokeDashoffset={poseSelected ? offset : CIRCUMFERENCE}
+            strokeDashoffset={poseSelected && analyzed ? offset : CIRCUMFERENCE}
             style={{ transition: "stroke-dashoffset 500ms ease, stroke 400ms ease" }}
           />
         </svg>
@@ -70,7 +72,7 @@ export default function ScoreDisplay({ score, poseSelected }: ScoreDisplayProps)
           className="absolute inset-0 flex flex-col items-center justify-center"
           aria-label={`Alignment score: ${clamped}%`}
         >
-          {poseSelected ? (
+          {poseSelected && analyzed ? (
             <>
               <span
                 className="text-xl font-semibold tabular-nums leading-none"
@@ -102,14 +104,14 @@ export default function ScoreDisplay({ score, poseSelected }: ScoreDisplayProps)
           <span
             className="text-sm font-medium"
             style={{
-              color: poseSelected ? color : "var(--text-tertiary)",
+              color: poseSelected && analyzed ? color : "var(--text-tertiary)",
               fontFamily: "var(--font-dm-sans)",
               transition: "color 400ms ease",
             }}
           >
-            {poseSelected ? scoreLabel(clamped) : "No pose"}
+            {poseSelected && analyzed ? scoreLabel(clamped) : poseSelected ? "Detecting…" : "No pose"}
           </span>
-          {poseSelected && (
+          {poseSelected && analyzed && (
             <span
               className="text-xs"
               style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-dm-sans)" }}
@@ -132,15 +134,15 @@ export default function ScoreDisplay({ score, poseSelected }: ScoreDisplayProps)
           <div
             className="h-full rounded-full"
             style={{
-              width: poseSelected ? `${clamped}%` : "0%",
-              background: poseSelected ? color : "var(--bg-subtle)",
+              width: poseSelected && analyzed ? `${clamped}%` : "0%",
+              background: poseSelected && analyzed ? color : "var(--bg-subtle)",
               transition: "width 500ms ease, background 400ms ease",
             }}
           />
         </div>
 
         {/* Sub-label */}
-        {poseSelected && (
+        {poseSelected && analyzed && (
           <p
             className="text-[10px] leading-relaxed"
             style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-dm-sans)" }}

@@ -1,5 +1,0 @@
-There is a docs/project.txt file that has an overview about the entire project. I will like to use the available frontend and the backend skkills. If you have any doubts while drafting the plan, ask me the questions. 
-
-Create a list of specs for the project. Based on those specs, create a plan that will incrementally build the entire web app till deployment on vercel. It does not need any login or logout feature. Ensure the plan is built in such a way that I should be able to read every single line of code before approving them. So, add proper comments, build good and strong documentations in a separate folder and also be sure that the entire coding is happening incrementally. 
-
-Create an elaborate plan and store it in the docs folder before starting anything. Do not add code snippets to the plan. Only give overall structure. Feel free to design the data flow and other system level design requirements. 
