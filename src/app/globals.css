@@ -1,0 +1,179 @@
+@import "tailwindcss";
+
+/* ============================================================
+   Design System — Yoga Pose Estimation
+   Aesthetic: Dark Zen Studio
+   Palette: Deep charcoal · Sage green · Warm cream
+   ============================================================ */
+
+:root {
+  /* Background scale */
+  --bg-base:    #0C0F0A;   /* near-black with green undertone */
+  --bg-surface: #141810;   /* card / panel surfaces */
+  --bg-raised:  #1C2118;   /* slightly lifted surfaces */
+  --bg-subtle:  #242B20;   /* hover states, borders */
+
+  /* Text scale */
+  --text-primary:   #EDE9E0;  /* warm cream — headings & primary content */
+  --text-secondary: #9E9A92;  /* muted warm gray */
+  --text-tertiary:  #5E5C58;  /* placeholders, disabled */
+
+  /* Accent — sage green */
+  --accent:         #7FA87C;  /* primary interactive green */
+  --accent-hover:   #93BC90;  /* lighter on hover */
+  --accent-muted:   #2A3D29;  /* subtle tinted background */
+  --accent-border:  #3D5C3A;  /* green-tinted borders */
+
+  /* Feedback — joint status colors */
+  --joint-correct:  #5FAD5B;  /* correct joint: green */
+  --joint-error:    #C0614A;  /* wrong joint: terracotta */
+  --joint-unknown:  #5E6B5C;  /* no data: muted */
+
+  /* Functional */
+  --border:     #272C24;
+  --shadow-sm:  0 2px 8px rgba(0,0,0,0.4);
+  --shadow-md:  0 8px 24px rgba(0,0,0,0.5);
+  --shadow-lg:  0 20px 48px rgba(0,0,0,0.6);
+
+  /* Typography */
+  --font-display: var(--font-playfair);
+  --font-body:    var(--font-dm-sans);
+
+  /* Transitions */
+  --transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ============================================================
+   Base reset & body
+   ============================================================ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  height: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  min-height: 100%;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-body), sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+/* Remove default margins on headings */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display), serif;
+  font-weight: 400;
+  line-height: 1.2;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+/* ============================================================
+   Scrollbar (webkit)
+   ============================================================ */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-base);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bg-subtle);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-border);
+}
+
+/* ============================================================
+   Focus ring (accessibility)
+   ============================================================ */
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+/* ============================================================
+   Utility classes
+   ============================================================ */
+
+/* Thin horizontal rule with green glow */
+.divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent-border), transparent);
+  border: none;
+  margin: 0;
+}
+
+/* Frosted glass card effect */
+.glass-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--transition);
+}
+
+.glass-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* Sage green pill badge */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: var(--accent-muted);
+  color: var(--accent);
+  border: 1px solid var(--accent-border);
+}
+
+/* ============================================================
+   Animation keyframes
+   ============================================================ */
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(127, 168, 124, 0); }
+  50%       { box-shadow: 0 0 0 6px rgba(127, 168, 124, 0.15); }
+}
+
+@keyframes scanLine {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease forwards;
+}
+
+/* Staggered animation delays for lists */
+.animate-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.animate-stagger > *:nth-child(2) { animation-delay: 80ms; }
+.animate-stagger > *:nth-child(3) { animation-delay: 160ms; }
+.animate-stagger > *:nth-child(4) { animation-delay: 240ms; }
+.animate-stagger > *:nth-child(5) { animation-delay: 320ms; }
+.animate-stagger > *:nth-child(6) { animation-delay: 400ms; }
