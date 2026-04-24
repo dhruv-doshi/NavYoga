@@ -1,0 +1,169 @@
+/**
+ * @file components/PoseSelector.tsx
+ * @description Dropdown selector for choosing the target yoga pose.
+ *
+ * Phase 7/8: Loads pose list from poses.json and exposes the selected
+ * PoseDefinition to the parent via onSelect callback.
+ */
+
+"use client";
+
+import { useState, useRef, useEffect } from "react";
+import type { PoseDefinition } from "@/lib/types";
+
+interface PoseSelectorProps {
+  poses: PoseDefinition[];
+  selectedId: string | null;
+  onSelect: (pose: PoseDefinition | null) => void;
+}
+
+const DIFFICULTY_COLORS: Record<string, string> = {
+  beginner:     "var(--joint-correct)",
+  intermediate: "#c89630",
+  advanced:     "var(--joint-error)",
+};
+
+export default function PoseSelector({ poses, selectedId, onSelect }: PoseSelectorProps) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const selected = poses.find((p) => p.id === selectedId) ?? null;
+
+  // Close on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative w-full">
+      {/* Trigger */}
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm transition-colors"
+        style={{
+          background: "var(--bg-raised)",
+          border: `1px solid ${open ? "var(--accent-border)" : "var(--border)"}`,
+          color: selected ? "var(--text-primary)" : "var(--text-tertiary)",
+          fontFamily: "var(--font-dm-sans)",
+        }}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <span className="flex items-center gap-2">
+          {selected ? (
+            <>
+              <span style={{ color: "var(--accent)" }}>◆</span>
+              <span>{selected.name}</span>
+              <span className="text-xs" style={{ color: "var(--text-tertiary)", fontStyle: "italic" }}>
+                {selected.sanskrit}
+              </span>
+            </>
+          ) : (
+            "Select a pose to begin…"
+          )}
+        </span>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          style={{
+            transform: open ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform 200ms ease",
+            color: "var(--text-tertiary)",
+            flexShrink: 0,
+          }}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {/* Dropdown */}
+      {open && (
+        <div
+          className="absolute z-50 w-full mt-1 rounded-lg overflow-hidden"
+          style={{
+            background: "var(--bg-surface)",
+            border: "1px solid var(--border)",
+            boxShadow: "var(--shadow-md)",
+          }}
+          role="listbox"
+          aria-label="Select pose"
+        >
+          {/* Clear option */}
+          <button
+            onClick={() => { onSelect(null); setOpen(false); }}
+            className="w-full px-4 py-2.5 text-left text-sm transition-colors"
+            style={{
+              color: "var(--text-tertiary)",
+              fontFamily: "var(--font-dm-sans)",
+              borderBottom: "1px solid var(--border)",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--bg-raised)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            role="option"
+            aria-selected={selectedId === null}
+          >
+            — No pose selected
+          </button>
+
+          {poses.map((pose) => {
+            const isActive = pose.id === selectedId;
+            return (
+              <button
+                key={pose.id}
+                onClick={() => { onSelect(pose); setOpen(false); }}
+                className="w-full px-4 py-3 text-left flex items-center justify-between gap-2 transition-colors"
+                style={{
+                  background: isActive ? "var(--accent-muted)" : "transparent",
+                  fontFamily: "var(--font-dm-sans)",
+                }}
+                onMouseEnter={(e) => {
+                  if (!isActive) e.currentTarget.style.background = "var(--bg-raised)";
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive) e.currentTarget.style.background = "transparent";
+                }}
+                role="option"
+                aria-selected={isActive}
+              >
+                <span className="flex flex-col gap-0.5">
+                  <span
+                    className="text-sm font-medium"
+                    style={{ color: isActive ? "var(--accent)" : "var(--text-primary)" }}
+                  >
+                    {pose.name}
+                  </span>
+                  <span className="text-xs italic" style={{ color: "var(--text-tertiary)" }}>
+                    {pose.sanskrit}
+                  </span>
+                </span>
+                <span
+                  className="text-xs px-2 py-0.5 rounded-full flex-shrink-0"
+                  style={{
+                    background: "var(--bg-subtle)",
+                    color: DIFFICULTY_COLORS[pose.difficulty] ?? "var(--text-tertiary)",
+                    letterSpacing: "0.05em",
+                    textTransform: "capitalize",
+                  }}
+                >
+                  {pose.difficulty}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}

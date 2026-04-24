@@ -88,6 +88,8 @@ export interface PoseDefinition {
   imageUrl: string;
   /** List of joint angle constraints that define correct form */
   angles: PoseAngleConstraint[];
+  /** Focus area tags for UI display */
+  focus?: string[];
 }
 
 // ---------------------------------------------------------------------------

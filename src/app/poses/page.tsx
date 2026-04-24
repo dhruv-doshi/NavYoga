@@ -2,92 +2,30 @@
  * @file app/poses/page.tsx
  * @description Pose library page — browse all supported yoga poses.
  *
- * Phase 2: Placeholder layout with static pose cards.
- * Phase 7 will replace static data with poses.json and add full details,
- *          reference images, and angle specification tables.
+ * Phase 7: Loaded from poses.json. Shows all 6 poses with descriptions,
+ * difficulty, focus areas, and angle constraint counts.
  *
- * This is a Server Component (no interactivity needed at this stage).
+ * This is a Server Component.
  */
 
 import type { Metadata } from "next";
 import Link from "next/link";
+import type { PoseDefinition } from "@/lib/types";
+import posesData from "@/data/poses.json";
 
 export const metadata: Metadata = {
   title: "Pose Library",
   description: "Browse the 6 foundational yoga poses supported by Asana.",
 };
 
-// ---------------------------------------------------------------------------
-// Static pose data (will be replaced by poses.json in Phase 7)
-// ---------------------------------------------------------------------------
-
-const POSES = [
-  {
-    id: "mountain",
-    name: "Mountain Pose",
-    sanskrit: "Tadasana",
-    difficulty: "Beginner" as const,
-    description:
-      "The foundation of all standing poses. Feet together, spine elongated, arms at sides. Establishes grounding and body awareness.",
-    focus: ["Posture", "Balance", "Alignment"],
-  },
-  {
-    id: "warrior-1",
-    name: "Warrior I",
-    sanskrit: "Virabhadrasana I",
-    difficulty: "Beginner" as const,
-    description:
-      "A powerful standing pose that builds strength in the legs and opens the chest. Front knee bent at 90°, arms overhead.",
-    focus: ["Strength", "Hip Flexors", "Shoulders"],
-  },
-  {
-    id: "warrior-2",
-    name: "Warrior II",
-    sanskrit: "Virabhadrasana II",
-    difficulty: "Beginner" as const,
-    description:
-      "Arms extended parallel to the floor, gaze over the front hand. Cultivates stamina and opens the hips and chest.",
-    focus: ["Endurance", "Hip Opening", "Focus"],
-  },
-  {
-    id: "tree",
-    name: "Tree Pose",
-    sanskrit: "Vrksasana",
-    difficulty: "Intermediate" as const,
-    description:
-      "Single-leg balance with the raised foot pressed into the inner thigh. Improves concentration and strengthens the standing leg.",
-    focus: ["Balance", "Concentration", "Core"],
-  },
-  {
-    id: "chair",
-    name: "Chair Pose",
-    sanskrit: "Utkatasana",
-    difficulty: "Beginner" as const,
-    description:
-      "A seated squat position with arms raised. Builds heat, strengthens the thighs and glutes, and challenges endurance.",
-    focus: ["Strength", "Glutes", "Endurance"],
-  },
-  {
-    id: "triangle",
-    name: "Triangle Pose",
-    sanskrit: "Trikonasana",
-    difficulty: "Intermediate" as const,
-    description:
-      "Legs wide, one hand reaching to the floor and the other to the sky. Stretches the hamstrings and opens the chest.",
-    focus: ["Flexibility", "Hamstrings", "Side Body"],
-  },
-] as const;
+const POSES = posesData as unknown as PoseDefinition[];
 
 // Difficulty badge color mapping
 const DIFFICULTY_COLORS: Record<string, { bg: string; text: string }> = {
-  Beginner:     { bg: "rgba(95,173,91,0.1)",  text: "var(--joint-correct)" },
-  Intermediate: { bg: "rgba(192,97,74,0.1)",  text: "var(--joint-error)" },
-  Advanced:     { bg: "rgba(200,150,60,0.1)", text: "#c89630" },
+  beginner:     { bg: "rgba(95,173,91,0.1)",  text: "var(--joint-correct)" },
+  intermediate: { bg: "rgba(200,150,60,0.1)", text: "#c89630" },
+  advanced:     { bg: "rgba(192,97,74,0.1)",  text: "var(--joint-error)" },
 };
-
-// ---------------------------------------------------------------------------
-// Page component
-// ---------------------------------------------------------------------------
 
 export default function PosesPage() {
   return (
@@ -119,7 +57,7 @@ export default function PosesPage() {
       {/* Pose grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 animate-stagger">
         {POSES.map((pose) => {
-          const diffColor = DIFFICULTY_COLORS[pose.difficulty];
+          const diffColor = DIFFICULTY_COLORS[pose.difficulty] ?? DIFFICULTY_COLORS.beginner;
           return (
             <article
               key={pose.id}
@@ -134,7 +72,7 @@ export default function PosesPage() {
                   color: diffColor.text,
                   fontFamily: "var(--font-dm-sans)",
                   letterSpacing: "0.06em",
-                  textTransform: "uppercase",
+                  textTransform: "capitalize",
                 }}
               >
                 {pose.difficulty}
@@ -168,22 +106,51 @@ export default function PosesPage() {
                 {pose.description}
               </p>
 
-              {/* Focus areas */}
-              <div className="flex flex-wrap gap-1.5 pt-2 border-t" style={{ borderColor: "var(--border)" }}>
-                {pose.focus.map((area) => (
-                  <span
-                    key={area}
-                    className="text-xs px-2 py-0.5 rounded"
-                    style={{
-                      background: "var(--bg-raised)",
-                      color: "var(--text-tertiary)",
-                      fontFamily: "var(--font-dm-sans)",
-                    }}
-                  >
-                    {area}
-                  </span>
-                ))}
+              {/* Angle constraints count */}
+              <div
+                className="flex items-center gap-1.5 pt-2"
+                style={{ borderTop: "1px solid var(--border)" }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                  stroke="var(--text-tertiary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                  <path d="M2 17l10 5 10-5" />
+                  <path d="M2 12l10 5 10-5" />
+                </svg>
+                <span
+                  className="text-xs"
+                  style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-dm-sans)" }}
+                >
+                  {pose.angles.length} joint constraint{pose.angles.length !== 1 ? "s" : ""}
+                </span>
+
+                <span
+                  className="ml-auto text-xs"
+                  style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-dm-sans)" }}
+                >
+                  {pose.angles.map((a) => a.joint.replace(/([A-Z])/g, " $1").trim()).slice(0, 2).join(", ")}
+                  {pose.angles.length > 2 ? ` +${pose.angles.length - 2}` : ""}
+                </span>
               </div>
+
+              {/* Focus areas */}
+              {pose.focus && (
+                <div className="flex flex-wrap gap-1.5">
+                  {pose.focus.map((area: string) => (
+                    <span
+                      key={area}
+                      className="text-xs px-2 py-0.5 rounded"
+                      style={{
+                        background: "var(--bg-raised)",
+                        color: "var(--text-tertiary)",
+                        fontFamily: "var(--font-dm-sans)",
+                      }}
+                    >
+                      {area}
+                    </span>
+                  ))}
+                </div>
+              )}
             </article>
           );
         })}

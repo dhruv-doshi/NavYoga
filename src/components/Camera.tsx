@@ -88,81 +88,85 @@ function describeError(err: unknown): string {
 
 export default function Camera({ onVideoReady, className = "" }: CameraProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
   const [cameraState, setCameraState] = useState<CameraState>({ status: "idle" });
+  // Incrementing this triggers a camera (re)start — used by retry/idle buttons.
+  const [startTrigger, setStartTrigger] = useState(0);
+
+  const retryCamera = useCallback(() => setStartTrigger((n) => n + 1), []);
 
   // -------------------------------------------------------------------------
-  // Start the webcam stream
-  // -------------------------------------------------------------------------
-
-  const startCamera = useCallback(async () => {
-    setCameraState({ status: "requesting" });
-
-    try {
-      // Request video-only stream; ideal resolution 1280×720 for accurate
-      // landmark detection, but we allow the browser to fallback gracefully.
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width:  { ideal: 1280 },
-          height: { ideal: 720 },
-          facingMode: "user",        // prefer front-facing camera on mobile
-        },
-        audio: false,
-      });
-
-      streamRef.current = stream;
-
-      const video = videoRef.current;
-      if (!video) return;
-
-      video.srcObject = stream;
-
-      // Wait for the video metadata to load so we have real dimensions
-      await new Promise<void>((resolve) => {
-        video.onloadedmetadata = () => resolve();
-      });
-
-      await video.play();
-
-      setCameraState({ status: "active" });
-
-      // Notify parent with the video element and its dimensions
-      onVideoReady?.(video, {
-        width:  video.videoWidth,
-        height: video.videoHeight,
-      });
-    } catch (err) {
-      setCameraState({ status: "error", message: describeError(err) });
-    }
-  }, [onVideoReady]);
-
-  // -------------------------------------------------------------------------
-  // Stop the webcam stream and release the camera
-  // -------------------------------------------------------------------------
-
-  const stopCamera = useCallback(() => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-    setCameraState({ status: "idle" });
-  }, []);
-
-  // -------------------------------------------------------------------------
-  // Lifecycle: start camera on mount, stop on unmount
+  // Lifecycle: start camera on mount (and on retry), stop on unmount.
+  // `active` is local to each effect invocation so there is no shared-ref
+  // race condition — every call to getUserMedia carries its own cancel flag.
   // -------------------------------------------------------------------------
 
   useEffect(() => {
-    startCamera();
+    let active = true;
+    let localStream: MediaStream | null = null;
+
+    async function start() {
+      setCameraState({ status: "requesting" });
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width:  { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: "user",
+          },
+          audio: false,
+        });
+
+        // Component unmounted (or effect re-ran) while waiting for permission —
+        // release immediately so the OS camera indicator goes away.
+        if (!active) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+
+        localStream = stream;
+
+        const video = videoRef.current;
+        if (!video) return;
+
+        video.srcObject = stream;
+
+        await new Promise<void>((resolve) => {
+          video.onloadedmetadata = () => resolve();
+        });
+
+        if (!active) return;
+
+        await video.play();
+
+        if (!active) return;
+
+        setCameraState({ status: "active" });
+        onVideoReady?.(video, {
+          width:  video.videoWidth,
+          height: video.videoHeight,
+        });
+      } catch (err) {
+        if (active) {
+          setCameraState({ status: "error", message: describeError(err) });
+        }
+      }
+    }
+
+    start();
+
     return () => {
-      // Always release the camera when this component unmounts to avoid
-      // the browser showing the camera-in-use indicator indefinitely.
-      stopCamera();
+      // Cancel any in-flight start() and release the stream immediately.
+      active = false;
+      if (localStream) {
+        localStream.getTracks().forEach((t) => t.stop());
+        localStream = null;
+      }
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
     };
-  }, [startCamera, stopCamera]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startTrigger]); // onVideoReady intentionally omitted — stable useCallback in parent
 
   // -------------------------------------------------------------------------
   // Render
@@ -246,7 +250,7 @@ export default function Camera({ onVideoReady, className = "" }: CameraProps) {
                 Camera not started.
               </p>
               <button
-                onClick={startCamera}
+                onClick={retryCamera}
                 className="px-6 py-2.5 rounded-full text-sm font-semibold"
                 style={{
                   background: "var(--accent)",
@@ -300,7 +304,7 @@ export default function Camera({ onVideoReady, className = "" }: CameraProps) {
                 {cameraState.message}
               </p>
               <button
-                onClick={startCamera}
+                onClick={retryCamera}
                 className="px-6 py-2.5 rounded-full text-sm font-semibold mt-2"
                 style={{
                   background: "var(--bg-raised)",

@@ -124,30 +124,10 @@ export default function HomePage() {
 
           {/* CTA buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link
-              href="/practice"
-              className="px-8 py-3.5 rounded-full text-sm font-semibold transition-all"
-              style={{
-                background: "var(--accent)",
-                color: "#0C0F0A",
-                fontFamily: "var(--font-dm-sans)",
-                letterSpacing: "0.04em",
-                boxShadow: "0 4px 20px rgba(127,168,124,0.3)",
-              }}
-            >
+            <Link href="/practice" className="btn-primary">
               Start Practicing →
             </Link>
-            <Link
-              href="/poses"
-              className="px-8 py-3.5 rounded-full text-sm font-semibold transition-all"
-              style={{
-                background: "transparent",
-                color: "var(--text-secondary)",
-                border: "1px solid var(--border)",
-                fontFamily: "var(--font-dm-sans)",
-                letterSpacing: "0.04em",
-              }}
-            >
+            <Link href="/poses" className="btn-ghost">
               Browse Poses
             </Link>
           </div>
@@ -317,17 +297,7 @@ export default function HomePage() {
         >
           No installation. No account. Just your camera and a few minutes.
         </p>
-        <Link
-          href="/practice"
-          className="px-10 py-4 rounded-full text-sm font-semibold inline-block transition-all"
-          style={{
-            background: "var(--accent-muted)",
-            color: "var(--accent)",
-            border: "1px solid var(--accent-border)",
-            fontFamily: "var(--font-dm-sans)",
-            letterSpacing: "0.06em",
-          }}
-        >
+        <Link href="/practice" className="btn-primary">
           Open the Studio →
         </Link>
       </section>
