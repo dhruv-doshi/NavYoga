@@ -20,15 +20,21 @@ import PoseCanvas from "@/components/PoseCanvas";
 import PoseSelector from "@/components/PoseSelector";
 import FeedbackPanel from "@/components/FeedbackPanel";
 import ScoreDisplay from "@/components/ScoreDisplay";
+import { RecordPoseFlow } from "@/components/RecordPoseFlow";
+import { MasterPosePanel } from "@/components/MasterPosePanel";
+import { StepInstructionPanel } from "@/components/StepInstructionPanel";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useStepFlow } from "@/hooks/useStepFlow";
+import { CONFIG } from "@/lib/config";
+import { cancelSpeech } from "@/lib/tts";
 import type { VideoDimensions, Landmark, AngleMap, PoseDefinition, PoseComparisonResult } from "@/lib/types";
 import { comparePose, comparisonToJointColors } from "@/lib/poseComparison";
 import { generateFeedback, getFeedbackHeadline, type FeedbackItem } from "@/lib/feedback";
 import type { JointColorMap } from "@/lib/drawing";
+import { loadCustomPoses, deleteCustomPose } from "@/lib/customPoses";
 import posesData from "@/data/poses.json";
 
 const POSES = posesData as unknown as PoseDefinition[];
-const SCORE_TOLERANCE = 20;
 
 // ---------------------------------------------------------------------------
 // Component
@@ -42,7 +48,9 @@ export default function PracticePage() {
   const [angles, setAngles] = useState<AngleMap>({});
   const [showDebug, setShowDebug] = useState(false);
 
-  // Phase 7–10 state
+  const [customPoses, setCustomPoses] = useState<PoseDefinition[]>([]);
+  const [showReference, setShowReference] = useState(true);
+
   const [selectedPose, setSelectedPose] = useState<PoseDefinition | null>(null);
   const selectedPoseRef = useRef<PoseDefinition | null>(null);
   selectedPoseRef.current = selectedPose;
@@ -51,6 +59,13 @@ export default function PracticePage() {
   const [jointColors, setJointColors] = useState<JointColorMap | undefined>(undefined);
   const [feedbackItems, setFeedbackItems] = useState<FeedbackItem[]>([]);
   const [feedbackHeadline, setFeedbackHeadline] = useState("");
+
+  const { stepFlow, advanceIfReady } = useStepFlow(selectedPose);
+
+  // Load custom poses on mount
+  useEffect(() => {
+    setCustomPoses(loadCustomPoses());
+  }, []);
 
   // Called by Camera when stream is live
   const handleVideoReady = useCallback(
@@ -80,13 +95,13 @@ export default function PracticePage() {
     });
   }, []);
 
-  // Clear comparison results whenever the selected pose changes
   useEffect(() => {
     lastDisplayedScoreRef.current = -1;
     setComparisonResult(null);
     setJointColors(undefined);
     setFeedbackItems([]);
     setFeedbackHeadline("");
+    cancelSpeech();
   }, [selectedPose]);
 
   // Stable callback: runs comparePose on every angles update from PoseCanvas.
@@ -97,17 +112,31 @@ export default function PracticePage() {
     const pose = selectedPoseRef.current;
     if (!pose || Object.keys(newAngles).length === 0) return;
     const result = comparePose(newAngles, pose);
-    if (Math.abs(result.score - lastDisplayedScoreRef.current) >= SCORE_TOLERANCE) {
+    if (Math.abs(result.score - lastDisplayedScoreRef.current) >= CONFIG.SCORE_UPDATE_THROTTLE) {
       lastDisplayedScoreRef.current = result.score;
       setComparisonResult(result);
       setJointColors(comparisonToJointColors(result));
       setFeedbackItems(generateFeedback(result));
       setFeedbackHeadline(getFeedbackHeadline(result.score));
     }
-  }, []);
+    advanceIfReady(result);
+  }, [advanceIfReady]);
 
   const poseDetected = landmarks !== null && landmarks.length > 0;
   const score = comparisonResult?.score ?? 0;
+  const allPoses = [...POSES, ...customPoses];
+
+  const handleDeletePose = (id: string) => {
+    deleteCustomPose(id);
+    setCustomPoses(loadCustomPoses());
+    if (selectedPose?.id === id) {
+      setSelectedPose(null);
+    }
+  };
+
+  const handlePoseSaved = () => {
+    setCustomPoses(loadCustomPoses());
+  };
 
   return (
     <ErrorBoundary>
@@ -162,6 +191,8 @@ export default function PracticePage() {
             jointColors={jointColors}
             onLandmarks={setLandmarks}
             onAngles={handleAngles}
+            referenceLandmarks={selectedPose?.referenceLandmarks ?? null}
+            showReferenceOverlay={showReference && !!selectedPose?.referenceLandmarks}
           />
         )}
 
@@ -205,13 +236,30 @@ export default function PracticePage() {
                 transition: "color 400ms ease",
               }}
             >
-              {score}% aligned
+              {score}% mastery
             </div>
           )}
         </div>
 
         {/* ── Top-right controls ── */}
         <div className="absolute top-4 right-4 flex items-center gap-2">
+          {cameraActive && videoEl && selectedPose?.referenceLandmarks && (
+            <button
+              onClick={() => setShowReference((v) => !v)}
+              className="px-3 py-1.5 rounded-full text-xs font-semibold transition-colors"
+              style={{
+                background: showReference ? "rgba(120,180,255,0.15)" : "rgba(12,15,10,0.85)",
+                border: showReference ? "1px solid rgba(120,180,255,0.4)" : "1px solid rgba(255,255,255,0.15)",
+                color: showReference ? "rgba(120,180,255,0.9)" : "#ffffff",
+                fontFamily: "var(--font-dm-sans)",
+                backdropFilter: "blur(8px)",
+              }}
+              aria-pressed={showReference}
+              title="Toggle reference skeleton overlay"
+            >
+              Ghost
+            </button>
+          )}
           {cameraActive && videoEl && (
             <button
               onClick={() => setShowDebug((v) => !v)}
@@ -303,12 +351,13 @@ export default function PracticePage() {
             Target Pose
           </h2>
           <PoseSelector
-            poses={POSES}
+            poses={allPoses}
             selectedId={selectedPose?.id ?? null}
             onSelect={(pose) => {
               console.log("[Practice] pose selected: %s (%s), %d angle constraints", pose?.id ?? "none", pose?.name ?? "", pose?.angles.length ?? 0);
               setSelectedPose(pose);
             }}
+            onDelete={handleDeletePose}
           />
           {selectedPose && (
             <div className="flex items-start gap-3">
@@ -341,11 +390,26 @@ export default function PracticePage() {
               </p>
             </div>
           )}
+
+          {cameraActive && (
+            <div className="pt-2">
+              <RecordPoseFlow
+                currentLandmarks={landmarks}
+                onSave={handlePoseSaved}
+              />
+            </div>
+          )}
         </div>
 
-        {/* ----------------------------------------------------------------
-            Section: Alignment Score (Phase 10)
-            ---------------------------------------------------------------- */}
+        {/* Master pose reference */}
+        {selectedPose && <MasterPosePanel pose={selectedPose} />}
+
+        {/* Step-by-step instructions or feedback */}
+        {selectedPose && stepFlow.steps.length > 0 && (
+          <StepInstructionPanel stepFlow={stepFlow} />
+        )}
+
+        {/* Score section */}
         <div
           className="p-5 flex flex-col gap-3"
           style={{ borderBottom: "1px solid var(--border)" }}
@@ -354,29 +418,29 @@ export default function PracticePage() {
             className="text-xs font-semibold uppercase tracking-widest"
             style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-dm-sans)" }}
           >
-            Alignment Score
+            Pose Mastery Score
           </h2>
           <ScoreDisplay score={score} poseSelected={!!selectedPose} analyzed={comparisonResult !== null} />
         </div>
 
-        {/* ----------------------------------------------------------------
-            Section: Corrective Feedback (Phase 9)
-            ---------------------------------------------------------------- */}
-        <div className="p-5 flex flex-col gap-3 flex-1">
-          <h2
-            className="text-xs font-semibold uppercase tracking-widest"
-            style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-dm-sans)" }}
-          >
-            Feedback
-          </h2>
-          <FeedbackPanel
-            items={feedbackItems}
-            headline={feedbackHeadline}
-            poseSelected={!!selectedPose}
-            poseDetected={poseDetected}
-            analyzed={comparisonResult !== null}
-          />
-        </div>
+        {/* Feedback panel (shown when step flow not available or in fallback mode) */}
+        {!stepFlow.steps.length && (
+          <div className="p-5 flex flex-col gap-3 flex-1">
+            <h2
+              className="text-xs font-semibold uppercase tracking-widest"
+              style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-dm-sans)" }}
+            >
+              Feedback
+            </h2>
+            <FeedbackPanel
+              items={feedbackItems}
+              headline={feedbackHeadline}
+              poseSelected={!!selectedPose}
+              poseDetected={poseDetected}
+              analyzed={comparisonResult !== null}
+            />
+          </div>
+        )}
 
         {/* ----------------------------------------------------------------
             Section: Detected Joint Angles (Phase 6 debug output)

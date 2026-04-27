@@ -7,6 +7,7 @@
  * - Score = (correct joints / total evaluated joints) × 100
  */
 
+import { CONFIG } from "./config";
 import type { AngleMap, PoseDefinition, PoseComparisonResult, JointComparisonResult, JointStatus } from "./types";
 
 /**
@@ -24,10 +25,13 @@ export function comparePose(
 
   const joints: JointComparisonResult[] = [];
   const corrections: string[] = [];
+  const tolerance = CONFIG.POSE_MASTERY_TOLERANCE;
 
   for (const constraint of pose.angles) {
     const { joint, min, max, correctionLow, correctionHigh } = constraint;
     const angleDeg = angles[joint];
+    const tolerantMin = min - tolerance;
+    const tolerantMax = max + tolerance;
 
     let status: JointStatus;
     let correctionText: string | null = null;
@@ -36,21 +40,21 @@ export function comparePose(
     if (angleDeg === undefined) {
       status = "unknown";
       console.debug("[PoseComparison]   %s → unknown (not in angleMap)", joint);
-    } else if (angleDeg < min) {
+    } else if (angleDeg < tolerantMin) {
       status = "too_low";
-      deviation = min - angleDeg;
+      deviation = tolerantMin - angleDeg;
       correctionText = correctionLow;
       corrections.push(correctionText);
-      console.debug("[PoseComparison]   %s → too_low  (%.1f° < min %.1f°, deviation %.1f°)", joint, angleDeg, min, deviation);
-    } else if (angleDeg > max) {
+      console.debug("[PoseComparison]   %s → too_low  (%.1f° < min %.1f°, deviation %.1f°)", joint, angleDeg, tolerantMin, deviation);
+    } else if (angleDeg > tolerantMax) {
       status = "too_high";
-      deviation = angleDeg - max;
+      deviation = angleDeg - tolerantMax;
       correctionText = correctionHigh;
       corrections.push(correctionText);
-      console.debug("[PoseComparison]   %s → too_high (%.1f° > max %.1f°, deviation %.1f°)", joint, angleDeg, max, deviation);
+      console.debug("[PoseComparison]   %s → too_high (%.1f° > max %.1f°, deviation %.1f°)", joint, angleDeg, tolerantMax, deviation);
     } else {
       status = "correct";
-      console.debug("[PoseComparison]   %s → correct  (%.1f° in [%.1f°, %.1f°])", joint, angleDeg, min, max);
+      console.debug("[PoseComparison]   %s → correct  (%.1f° in [%.1f°, %.1f°])", joint, angleDeg, tolerantMin, tolerantMax);
     }
 
     joints.push({ joint, status, angleDeg: angleDeg ?? 0, deviation, correctionText });

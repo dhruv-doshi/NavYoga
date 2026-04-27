@@ -14,8 +14,9 @@
 
 import { useEffect, useRef, useCallback, useState } from "react";
 import { initPoseLandmarker, detectPose, disposePoseLandmarker } from "@/lib/mediapipe";
-import { drawSkeleton, drawAngleOverlay, type JointColorMap } from "@/lib/drawing";
+import { drawSkeleton, drawAngleOverlay, drawReferenceSkeleton, type JointColorMap } from "@/lib/drawing";
 import { computeAngles } from "@/lib/angles";
+import { CONFIG } from "@/lib/config";
 import type { Landmark, AngleMap, VideoDimensions } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -37,6 +38,10 @@ interface PoseCanvasProps {
   onAngles?: (angles: AngleMap) => void;
   /** CSS class for the canvas element */
   className?: string;
+  /** Optional reference landmarks to draw as ghost overlay */
+  referenceLandmarks?: Landmark[] | null;
+  /** Whether to show the reference skeleton overlay */
+  showReferenceOverlay?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -51,20 +56,29 @@ export default function PoseCanvas({
   onLandmarks,
   onAngles,
   className = "",
+  referenceLandmarks = null,
+  showReferenceOverlay = true,
 }: PoseCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
+  const lastFrameTimeRef = useRef<number>(0);
   const [mpReady, setMpReady] = useState(false);
   const [mpError, setMpError] = useState<string | null>(null);
   const lastHadLandmarksRef = useRef<boolean | null>(null);
+
+  const FRAME_INTERVAL_MS = 1000 / CONFIG.DETECTION_FPS;
 
   // Refs for props that change frequently but shouldn't restart the RAF loop
   const jointColorsRef = useRef(jointColors);
   const onLandmarksRef = useRef(onLandmarks);
   const onAnglesRef = useRef(onAngles);
+  const referenceLandmarksRef = useRef(referenceLandmarks);
+  const showReferenceOverlayRef = useRef(showReferenceOverlay);
   jointColorsRef.current = jointColors;
   onLandmarksRef.current = onLandmarks;
   onAnglesRef.current = onAngles;
+  referenceLandmarksRef.current = referenceLandmarks;
+  showReferenceOverlayRef.current = showReferenceOverlay;
 
   // -------------------------------------------------------------------------
   // Initialize MediaPipe once
@@ -106,14 +120,21 @@ export default function PoseCanvas({
       return;
     }
 
+    const now = performance.now();
+
+    // Throttle to TARGET_FPS — skip frame but keep RAF loop alive
+    if (now - lastFrameTimeRef.current < FRAME_INTERVAL_MS) {
+      rafRef.current = requestAnimationFrame(runLoop);
+      return;
+    }
+    lastFrameTimeRef.current = now;
+
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
     const { width, height } = dimensions;
     canvas.width = width;
     canvas.height = height;
-
-    const now = performance.now();
     const landmarks = detectPose(video, now);
 
     // Log only on landmark detection state changes (appear / disappear)
@@ -129,6 +150,12 @@ export default function PoseCanvas({
 
     // Draw skeleton (clears canvas first)
     drawSkeleton(ctx, landmarks ?? [], width, height, jointColorsRef.current);
+
+    // Draw reference skeleton (ghost overlay, after live skeleton so it appears under)
+    const refLms = referenceLandmarksRef.current;
+    if (refLms && refLms.length > 0 && showReferenceOverlayRef.current) {
+      drawReferenceSkeleton(ctx, refLms, width, height);
+    }
 
     if (landmarks) {
       const angles = computeAngles(landmarks);

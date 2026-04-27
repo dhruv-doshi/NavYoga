@@ -90,6 +90,12 @@ export interface PoseDefinition {
   angles: PoseAngleConstraint[];
   /** Focus area tags for UI display */
   focus?: string[];
+  /** Optional canonical landmark snapshot for reference overlay */
+  referenceLandmarks?: Landmark[];
+  /** Whether this pose was recorded by the user (vs built-in) */
+  isCustom?: boolean;
+  /** ISO timestamp when this pose was recorded */
+  recordedAt?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -130,6 +136,55 @@ export interface PoseComparisonResult {
   score: number;
   /** List of correction strings for joints that are not correct */
   corrections: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Recording types
+// ---------------------------------------------------------------------------
+
+/**
+ * State machine phase for recording instructor pose.
+ */
+export type RecordingPhase =
+  | "idle"       // button not pressed
+  | "countdown"  // 3-2-1 countdown
+  | "capturing"  // collecting frames
+  | "naming"     // user types a name
+  | "saved";     // confirmation flash
+
+/**
+ * State for recording UI component.
+ */
+export interface RecordingState {
+  phase: RecordingPhase;
+  countdown: number;           // seconds remaining (3→0)
+  captureBuffer: Landmark[][]; // accumulated frames during capture window
+}
+
+// ---------------------------------------------------------------------------
+// Step-by-step instruction types
+// ---------------------------------------------------------------------------
+
+/**
+ * A single step within a pose's instruction sequence.
+ */
+export interface PoseStep {
+  index: number;
+  title: string;
+  instruction: string;
+  focusJoints: string[];
+}
+
+/**
+ * State machine for step-by-step pose guidance.
+ */
+export interface StepFlowState {
+  steps: PoseStep[];
+  currentStepIndex: number;
+  stepMasteryScore: number;
+  isLoading: boolean;
+  error: string | null;
+  isComplete: boolean;
 }
 
 // ---------------------------------------------------------------------------

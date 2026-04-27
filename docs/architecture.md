@@ -78,3 +78,61 @@ green/red joints)              text, headline)
 | `/` | Static (SSG) | No dynamic data, instant load |
 | `/poses` | Static (SSG) | Pose data from local JSON |
 | `/practice` | Client (CSR) | Camera + canvas cannot run server-side |
+
+## Step-by-Step Instructions (LLM Coaching)
+
+When a student selects a pose, the app generates human-friendly, ordered step-by-step instructions via an LLM:
+
+```
+User selects pose
+  ▼
+useStepFlow hook
+  ├─ generateSteps(pose)
+  │   ├─ Client calls POST /api/llm
+  │   ├─ Server proxies to OpenRouter (API key in process.env)
+  │   ├─ LLM returns: [{ title, instruction, focusJoints }]
+  │   └─ Client validates + filters hallucinated joints
+  └─ StepInstructionPanel displays steps
+
+Every frame (10 FPS):
+  computeStepMastery(comparisonResult, currentStep)
+    ├─ Score only the focusJoints for the current step
+    └─ If mastery ≥ 80% → advance to next step + speak instruction
+```
+
+**Files:**
+- `src/lib/llm.ts` — LLM prompt + response parsing (isolated model/prompt config)
+- `src/app/api/llm/route.ts` — Server-side OpenRouter proxy (API key stays server-side)
+- `src/hooks/useStepFlow.ts` — State machine for step progression
+- `src/components/StepInstructionPanel.tsx` — UI for current step + mastery progress
+- `src/lib/stepInstructions.ts` — Step mastery computation + advancement logic
+
+## Text-to-Speech (Audio Coaching)
+
+Instructions are spoken via the Web Speech API (browser-native, no server cost):
+
+```
+speak(instruction) → window.speechSynthesis.speak()
+  ├─ Anti-bombardment: min 8s gap between utterances
+  ├─ Triggered on: pose selection, step advance, pose completion
+  └─ Cancellable: cancelSpeech() on pose change
+```
+
+**Files:**
+- `src/lib/tts.ts` — Web Speech API wrapper with pacing guard
+
+## Config Isolation
+
+All tunable parameters live in `src/lib/config.ts`:
+
+```ts
+DETECTION_FPS: 10,                    // pose detection frame rate
+SCORE_UPDATE_THROTTLE: 15,            // min score delta for feedback
+POSE_MASTERY_TOLERANCE: 5,            // degrees of extra tolerance
+STEP_ADVANCEMENT_THRESHOLD: 80,       // % mastery to advance
+TTS_MIN_GAP_MS: 8000,                 // min ms between audio
+MAX_FEEDBACK_ITEMS: 3,                // top N feedback corrections
+LLM_MODEL: "meta-llama/llama-3.1-...", // LLM to use
+```
+
+This allows independent tuning without touching component code.

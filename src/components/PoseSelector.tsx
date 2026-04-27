@@ -15,6 +15,7 @@ interface PoseSelectorProps {
   poses: PoseDefinition[];
   selectedId: string | null;
   onSelect: (pose: PoseDefinition | null) => void;
+  onDelete?: (id: string) => void;
 }
 
 const DIFFICULTY_COLORS: Record<string, string> = {
@@ -23,7 +24,7 @@ const DIFFICULTY_COLORS: Record<string, string> = {
   advanced:     "var(--joint-error)",
 };
 
-export default function PoseSelector({ poses, selectedId, onSelect }: PoseSelectorProps) {
+export default function PoseSelector({ poses, selectedId, onSelect, onDelete }: PoseSelectorProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -119,11 +120,11 @@ export default function PoseSelector({ poses, selectedId, onSelect }: PoseSelect
 
           {poses.map((pose) => {
             const isActive = pose.id === selectedId;
+            const isCustom = pose.isCustom;
             return (
-              <button
+              <div
                 key={pose.id}
-                onClick={() => { onSelect(pose); setOpen(false); }}
-                className="w-full px-4 py-3 text-left flex items-center justify-between gap-2 transition-colors"
+                className="group flex items-center transition-colors cursor-pointer"
                 style={{
                   background: isActive ? "var(--accent-muted)" : "transparent",
                   fontFamily: "var(--font-dm-sans)",
@@ -136,30 +137,47 @@ export default function PoseSelector({ poses, selectedId, onSelect }: PoseSelect
                 }}
                 role="option"
                 aria-selected={isActive}
+                onClick={() => { onSelect(pose); setOpen(false); }}
               >
-                <span className="flex flex-col gap-0.5">
+                <div className="flex-1 px-4 py-3 flex items-center justify-between gap-2 min-w-0">
+                  <span className="flex flex-col gap-0.5 min-w-0">
+                    <span
+                      className="text-sm font-medium truncate"
+                      style={{ color: isActive ? "var(--accent)" : "var(--text-primary)" }}
+                    >
+                      {pose.name}
+                    </span>
+                    <span className="text-xs italic" style={{ color: "var(--text-tertiary)" }}>
+                      {pose.sanskrit}
+                    </span>
+                  </span>
                   <span
-                    className="text-sm font-medium"
-                    style={{ color: isActive ? "var(--accent)" : "var(--text-primary)" }}
+                    className="text-xs px-2 py-0.5 rounded-full flex-shrink-0"
+                    style={{
+                      background: "var(--bg-subtle)",
+                      color: isCustom ? "#90caf9" : (DIFFICULTY_COLORS[pose.difficulty] ?? "var(--text-tertiary)"),
+                      letterSpacing: "0.05em",
+                      textTransform: "capitalize",
+                    }}
                   >
-                    {pose.name}
+                    {isCustom ? "recorded" : pose.difficulty}
                   </span>
-                  <span className="text-xs italic" style={{ color: "var(--text-tertiary)" }}>
-                    {pose.sanskrit}
-                  </span>
-                </span>
-                <span
-                  className="text-xs px-2 py-0.5 rounded-full flex-shrink-0"
-                  style={{
-                    background: "var(--bg-subtle)",
-                    color: DIFFICULTY_COLORS[pose.difficulty] ?? "var(--text-tertiary)",
-                    letterSpacing: "0.05em",
-                    textTransform: "capitalize",
-                  }}
-                >
-                  {pose.difficulty}
-                </span>
-              </button>
+                </div>
+                {isCustom && onDelete && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (confirm(`Delete "${pose.name}"?`)) {
+                        onDelete(pose.id);
+                      }
+                    }}
+                    className="flex-shrink-0 pr-3 text-xs opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-300"
+                    aria-label={`Delete ${pose.name}`}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
             );
           })}
         </div>

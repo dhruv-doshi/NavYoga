@@ -134,3 +134,54 @@ export function disposePoseLandmarker(): void {
   initPromise = null;
   _lastDetectionHadLandmarks = null;
 }
+
+// ---------------------------------------------------------------------------
+// Image mode detection (separate instance — IMAGE runningMode)
+// ---------------------------------------------------------------------------
+
+let imageLandmarker: PoseLandmarker | null = null;
+let imageInitPromise: Promise<PoseLandmarker> | null = null;
+
+async function getImageLandmarker(): Promise<PoseLandmarker> {
+  if (imageLandmarker) return imageLandmarker;
+  if (imageInitPromise) return imageInitPromise;
+
+  imageInitPromise = (async () => {
+    const vision = await FilesetResolver.forVisionTasks(
+      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.34/wasm"
+    );
+    imageLandmarker = await PoseLandmarker.createFromOptions(vision, {
+      baseOptions: {
+        modelAssetPath:
+          "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+        delegate: "GPU",
+      },
+      runningMode: "IMAGE",
+      numPoses: 1,
+      minPoseDetectionConfidence: 0.5,
+      minPosePresenceConfidence: 0.5,
+    });
+    return imageLandmarker;
+  })();
+
+  return imageInitPromise;
+}
+
+/**
+ * Detect pose landmarks from a static image element.
+ * Returns 33 landmarks or null if no person detected.
+ */
+export async function detectPoseFromImage(
+  source: HTMLImageElement | HTMLCanvasElement
+): Promise<Landmark[] | null> {
+  const lm = await getImageLandmarker();
+  let result: PoseLandmarkerResult;
+  try {
+    result = lm.detect(source);
+  } catch (err) {
+    console.error("[MediaPipe] detectPoseFromImage threw:", err);
+    return null;
+  }
+  if (!result.landmarks || result.landmarks.length === 0) return null;
+  return result.landmarks[0] as Landmark[];
+}

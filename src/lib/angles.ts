@@ -71,7 +71,7 @@ const JOINT_DEFINITIONS: Array<[string, number, number, number]> = [
 // Correct the shoulder and elbow definitions — they use different vertex landmarks:
 // leftShoulder:  13 → 11 → 23  (elbow → shoulder → hip)
 // leftElbow:     11 → 13 → 15  (shoulder → elbow → wrist)
-const CORRECTED_JOINTS: Array<[string, number, number, number]> = [
+export const CORRECTED_JOINTS: Array<[string, number, number, number]> = [
   ["leftShoulder",  13, 11, 23],
   ["rightShoulder", 14, 12, 24],
   ["leftElbow",     11, 13, 15],
@@ -124,13 +124,13 @@ export function computeAngles(landmarks: Landmark[]): AngleMap {
     angles[name] = Math.round(calcAngle(a, b, c) * 10) / 10;
   }
 
-  console.debug(
-    "[Angles] computeAngles: %d/%d joints computed. Angles: %o | Skipped: %s",
-    Object.keys(angles).length,
-    CORRECTED_JOINTS.length,
-    angles,
-    skipped.length > 0 ? skipped.join(", ") : "none"
-  );
+  // console.debug(
+  //   "[Angles] computeAngles: %d/%d joints computed. Angles: %o | Skipped: %s",
+  //   Object.keys(angles).length,
+  //   CORRECTED_JOINTS.length,
+  //   angles,
+  //   skipped.length > 0 ? skipped.join(", ") : "none"
+  // );
 
   return angles;
 }

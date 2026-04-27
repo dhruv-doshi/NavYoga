@@ -7,9 +7,8 @@
  * - Deduplicate and limit to top N corrections for UI readability
  */
 
+import { CONFIG } from "./config";
 import type { PoseComparisonResult } from "./types";
-
-const MAX_FEEDBACK_ITEMS = 3;
 
 export interface FeedbackItem {
   joint: string;
@@ -28,14 +27,6 @@ function formatJointLabel(joint: string): string {
     .trim();
 }
 
-/**
- * Generate prioritized corrective feedback items from a comparison result.
- *
- * @param result - Output of comparePose()
- * @returns Array of up to MAX_FEEDBACK_ITEMS FeedbackItem objects
- */
-const WARNING_THRESHOLD_DEG = 15;
-
 export function generateFeedback(result: PoseComparisonResult): FeedbackItem[] {
   const incorrectJoints = result.joints
     .filter((j) => (j.status === "too_low" || j.status === "too_high") && j.correctionText)
@@ -44,14 +35,14 @@ export function generateFeedback(result: PoseComparisonResult): FeedbackItem[] {
   console.log(
     "[Feedback] generateFeedback: %d incorrect joints total, showing top %d. Sorted by deviation: %s",
     incorrectJoints.length,
-    MAX_FEEDBACK_ITEMS,
+    CONFIG.MAX_FEEDBACK_ITEMS,
     incorrectJoints.map((j) => `${j.joint}(${j.deviation.toFixed(1)}°)`).join(", ") || "none"
   );
 
-  const items = incorrectJoints.slice(0, MAX_FEEDBACK_ITEMS).map((joint) => ({
+  const items = incorrectJoints.slice(0, CONFIG.MAX_FEEDBACK_ITEMS).map((joint) => ({
     joint: formatJointLabel(joint.joint),
     message: joint.correctionText!,
-    severity: (joint.deviation > WARNING_THRESHOLD_DEG ? "error" : "warning") as "error" | "warning",
+    severity: (joint.deviation > CONFIG.FEEDBACK_WARNING_THRESHOLD ? "error" : "warning") as "error" | "warning",
   }));
 
   console.debug("[Feedback] feedbackItems: %o", items);

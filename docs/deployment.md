@@ -61,7 +61,27 @@ This keeps the deployment bundle small (the WASM files are ~8 MB and are cached 
 
 ## Environment Variables
 
-None required. The app has no backend, database, or API keys.
+### Required for Step-by-Step Instructions
+
+If you want to use the LLM-powered step-by-step instructions feature:
+
+1. Get an API key from [OpenRouter](https://openrouter.ai)
+2. On Vercel: Go to **Settings** → **Environment Variables**
+3. Add:
+   ```
+   OPENROUTER_API_KEY=sk-or-your-key-here
+   ```
+
+The key is server-side only (never exposed to the browser).
+
+### Local Development
+
+Create a `.env.local` file:
+
+```bash
+cp .env.local.example .env.local
+# Edit .env.local and add your OpenRouter API key
+```
 
 ---
 

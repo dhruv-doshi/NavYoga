@@ -69,9 +69,10 @@ export function drawSkeleton(
   landmarks: Landmark[],
   width: number,
   height: number,
-  jointColors?: JointColorMap
+  jointColors?: JointColorMap,
+  clearFirst = true
 ): void {
-  ctx.clearRect(0, 0, width, height);
+  if (clearFirst) ctx.clearRect(0, 0, width, height);
 
   if (!landmarks || landmarks.length === 0) return;
 
@@ -157,6 +158,79 @@ export function drawSkeleton(
     ctx.beginPath();
     ctx.arc(x, y, 2, 0, 2 * Math.PI);
     ctx.fillStyle = "rgba(12,15,10,0.8)";
+    ctx.fill();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Reference skeleton overlay (ghost)
+// ---------------------------------------------------------------------------
+
+/**
+ * Draw a reference/ghost skeleton overlay on the canvas.
+ * This is drawn BEFORE the live skeleton so it appears underneath.
+ * Does not clear the canvas.
+ *
+ * @param ctx - 2D canvas rendering context
+ * @param landmarks - Array of 33 normalized landmarks
+ * @param width - Canvas/video pixel width
+ * @param height - Canvas/video pixel height
+ * @param opacity - Ghost opacity (default 0.35)
+ */
+export function drawReferenceSkeleton(
+  ctx: CanvasRenderingContext2D,
+  landmarks: Landmark[],
+  width: number,
+  height: number,
+  opacity = 0.35
+): void {
+  if (!landmarks || landmarks.length === 0) return;
+
+  const px = (lm: Landmark) => ({
+    x: (1 - lm.x) * width,
+    y: lm.y * height,
+  });
+
+  const VISIBILITY_THRESHOLD = 0.1;
+
+  // Draw bones
+  ctx.lineCap = "round";
+  ctx.lineWidth = 2.5;
+
+  for (const [idxA, idxB] of POSE_CONNECTIONS) {
+    const a = landmarks[idxA];
+    const b = landmarks[idxB];
+
+    if (!a || !b) continue;
+    if ((a.visibility ?? 1) < VISIBILITY_THRESHOLD || (b.visibility ?? 1) < VISIBILITY_THRESHOLD)
+      continue;
+
+    const pA = px(a);
+    const pB = px(b);
+
+    ctx.beginPath();
+    ctx.moveTo(pA.x, pA.y);
+    ctx.lineTo(pB.x, pB.y);
+    ctx.strokeStyle = `rgba(120, 180, 255, ${opacity})`;
+    ctx.stroke();
+  }
+
+  // Draw joints
+  for (let i = 0; i < landmarks.length; i++) {
+    const lm = landmarks[i];
+    if (!lm) continue;
+    if ((lm.visibility ?? 1) < VISIBILITY_THRESHOLD) continue;
+
+    const { x, y } = px(lm);
+
+    ctx.beginPath();
+    ctx.arc(x, y, 5, 0, 2 * Math.PI);
+    ctx.fillStyle = `rgba(120, 180, 255, ${opacity})`;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(x, y, 2, 0, 2 * Math.PI);
+    ctx.fillStyle = `rgba(12, 15, 10, ${opacity * 0.8})`;
     ctx.fill();
   }
 }

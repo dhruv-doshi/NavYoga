@@ -116,7 +116,7 @@ export default function ScoreDisplay({ score, poseSelected, analyzed }: ScoreDis
               className="text-xs"
               style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-dm-sans)" }}
             >
-              Alignment
+              Mastery
             </span>
           )}
         </div>
