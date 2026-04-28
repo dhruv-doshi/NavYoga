@@ -96,10 +96,18 @@ export interface PoseDefinition {
   isCustom?: boolean;
   /** ISO timestamp when this pose was recorded */
   recordedAt?: string;
+  /** Name of the master/instructor who created this pose */
+  masterName?: string;
+  /** Whether this pose is publicly available */
+  isPublic?: boolean;
   /** LLM-generated step instructions (cached to avoid re-calling LLM) */
   cachedSteps?: PoseStep[];
   /** Video-derived steps with instructor frame images */
   videoSteps?: VideoStep[];
+  /** Anonymous browser-scoped owner identifier */
+  ownerId?: string;
+  /** True if this pose was migrated from a legacy localStorage entry */
+  legacyMigrated?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -126,6 +134,8 @@ export interface JointComparisonResult {
   deviation: number;
   /** The corrective instruction to show if status is not "correct" */
   correctionText: string | null;
+  /** Continuous score [0..1]: 1 = perfect match, 0 = fully outside error threshold */
+  jointScore: number;
 }
 
 /**
@@ -190,6 +200,10 @@ export interface VideoStep {
   instruction: string;
   focusJoints: string[];
   imageUrl: string;
+  /** Per-step landmark snapshot extracted from the corresponding keyframe */
+  referenceLandmarks?: Landmark[];
+  /** Mean visibility of the per-step reference landmarks (0..1); low = poor detection */
+  referenceLandmarksConfidence?: number;
 }
 
 /**

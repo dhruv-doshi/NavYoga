@@ -21,6 +21,7 @@ export async function POST(req: Request) {
 
   const file = formData.get("file") as File | null;
   const poseName = (formData.get("poseName") as string | null) ?? "";
+  const stepIndex = (formData.get("stepIndex") as string | null) ?? "";
 
   if (!file) {
     return new Response(
@@ -33,13 +34,14 @@ export async function POST(req: Request) {
     ? poseName.toLowerCase().replace(/[^\w]+/g, "-").replace(/^-|-$/g, "")
     : "pose";
   const ext = file.name.split(".").pop() ?? "jpg";
-  const blobPath = `poses/${slug}/${Date.now()}.${ext}`;
+  const suffix = stepIndex !== "" ? `-step-${stepIndex}` : `-${Date.now()}`;
+  const blobPath = `poses/${slug}/${slug}${suffix}.${ext}`;
 
   console.log(`[upload-image] Uploading: path=${blobPath} size=${file.size} type=${file.type}`);
 
   try {
     const blob = await put(blobPath, file, {
-      access: "private",
+      access: "public",
       token,
     });
     console.log(`[upload-image] Upload OK: url=${blob.url}`);

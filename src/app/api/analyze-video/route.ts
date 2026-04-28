@@ -19,6 +19,7 @@ Your task:
 
 Rules:
 - Do NOT pick adjacent frames that look nearly identical — each step must show a meaningfully different body position
+- Ignore any frames where the instructor is clearly moving out of the pose, stopping the recording, or walking away. Focus only on frames showing the instructor actively demonstrating the pose.
 - Instructions must be in second person: "Stand with your feet...", "Bend your left knee..."
 - focusJoints must be camelCase from: leftKnee, rightKnee, leftHip, rightHip, leftElbow, rightElbow, leftShoulder, rightShoulder, leftAnkle, rightAnkle
 

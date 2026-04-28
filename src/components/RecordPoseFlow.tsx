@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useReducer, useCallback } from "react";
-import { averageLandmarks, derivePoseAngles, saveCustomPose, generatePoseId, updateCustomPoseSteps } from "@/lib/customPoses";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { derivePoseAngles, saveCustomPose, generatePoseId } from "@/lib/customPoses";
 import { generateSteps } from "@/lib/llm";
 import { detectPoseFromImage } from "@/lib/mediapipe";
 import { drawSkeleton } from "@/lib/drawing";
@@ -9,176 +9,7 @@ import { CONFIG } from "@/lib/config";
 import type { Landmark, PoseDefinition, VideoStep } from "@/lib/types";
 
 interface RecordPoseFlowProps {
-  currentLandmarks: Landmark[] | null;
   onSave: (pose: PoseDefinition) => void;
-}
-
-type Phase = "idle" | "countdown" | "capturing" | "naming" | "saved";
-
-interface RecordingState {
-  phase: Phase;
-  countdown: number;
-}
-
-type Action =
-  | { type: "start" }
-  | { type: "tick" }
-  | { type: "finish_capture" }
-  | { type: "save" }
-  | { type: "reset" };
-
-function reducer(state: RecordingState, action: Action): RecordingState {
-  switch (action.type) {
-    case "start":
-      return { phase: "countdown", countdown: 3 };
-    case "tick":
-      if (state.countdown <= 1) return { phase: "capturing", countdown: 0 };
-      return { ...state, countdown: state.countdown - 1 };
-    case "finish_capture":
-      return { ...state, phase: "naming" };
-    case "save":
-      return { phase: "saved", countdown: 0 };
-    case "reset":
-      return { phase: "idle", countdown: 0 };
-    default:
-      return state;
-  }
-}
-
-interface NamingFormProps {
-  capturedLandmarks: Landmark[];
-  imageUrl?: string;
-  videoSteps?: VideoStep[];
-  onSave: (pose: PoseDefinition) => void;
-  onCancel: () => void;
-  onSaved: () => void;
-}
-
-function NamingForm({ capturedLandmarks, imageUrl, videoSteps, onSave, onCancel, onSaved }: NamingFormProps) {
-  const [naming, setNaming] = useState<{
-    name: string;
-    sanskrit: string;
-    difficulty: "beginner" | "intermediate" | "advanced";
-  }>({ name: "", sanskrit: "", difficulty: "beginner" });
-  const [saving, setSaving] = useState(false);
-
-  const handleSave = async () => {
-    if (!naming.name.trim()) return;
-    if (capturedLandmarks.length === 0) {
-      alert("No pose data captured. Please try again.");
-      return;
-    }
-
-    setSaving(true);
-
-    try {
-      const angles = derivePoseAngles(capturedLandmarks);
-      const newPose: PoseDefinition = {
-        id: generatePoseId(naming.name),
-        name: naming.name,
-        sanskrit: naming.sanskrit || "",
-        description: `Custom pose recorded on ${new Date().toLocaleDateString()}`,
-        difficulty: naming.difficulty,
-        imageUrl: imageUrl || "/images/mountain.svg",
-        angles,
-        referenceLandmarks: capturedLandmarks,
-        isCustom: true,
-        recordedAt: new Date().toISOString(),
-      };
-
-      if (videoSteps && videoSteps.length > 0) {
-        // Video steps already analyzed — skip LLM generation
-        newPose.videoSteps = videoSteps;
-      } else {
-        // Generate text-only steps via LLM
-        try {
-          const steps = await generateSteps(newPose);
-          newPose.cachedSteps = steps;
-        } catch (e) {
-          console.warn("[NamingForm] Failed to generate steps:", e);
-        }
-      }
-
-      console.log("[NamingForm] Saving pose: id=%s name=%s videoSteps=%d cachedSteps=%d",
-        newPose.id, newPose.name, newPose.videoSteps?.length ?? 0, newPose.cachedSteps?.length ?? 0);
-      saveCustomPose(newPose);
-      if (newPose.cachedSteps) {
-        updateCustomPoseSteps(newPose.id, newPose.cachedSteps);
-      }
-      console.log("[NamingForm] Pose saved to localStorage, calling onSave");
-      onSave(newPose);
-      onSaved();
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-sm w-full mx-4 shadow-2xl">
-        <h3 className="text-lg font-bold mb-4 text-white">Name Your Pose</h3>
-
-        <label className="block mb-3">
-          <span className="text-xs text-gray-400 mb-1 block uppercase tracking-wide">Pose Name *</span>
-          <input
-            type="text"
-            value={naming.name}
-            onChange={(e) => setNaming({ ...naming, name: e.target.value })}
-            onKeyDown={(e) => e.key === "Enter" && !saving && handleSave()}
-            placeholder="e.g., My Warrior I"
-            disabled={saving}
-            className="w-full px-3 py-2 rounded-md bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 disabled:opacity-50"
-            autoFocus
-          />
-        </label>
-
-        <label className="block mb-3">
-          <span className="text-xs text-gray-400 mb-1 block uppercase tracking-wide">Sanskrit (optional)</span>
-          <input
-            type="text"
-            value={naming.sanskrit}
-            onChange={(e) => setNaming({ ...naming, sanskrit: e.target.value })}
-            placeholder="e.g., Virabhadrasana I"
-            disabled={saving}
-            className="w-full px-3 py-2 rounded-md bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 disabled:opacity-50"
-          />
-        </label>
-
-        <label className="block mb-5">
-          <span className="text-xs text-gray-400 mb-1 block uppercase tracking-wide">Difficulty</span>
-          <select
-            value={naming.difficulty}
-            onChange={(e) =>
-              setNaming({ ...naming, difficulty: e.target.value as "beginner" | "intermediate" | "advanced" })
-            }
-            disabled={saving}
-            className="w-full px-3 py-2 rounded-md bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-blue-500 disabled:opacity-50"
-          >
-            <option value="beginner">Beginner</option>
-            <option value="intermediate">Intermediate</option>
-            <option value="advanced">Advanced</option>
-          </select>
-        </label>
-
-        <div className="flex gap-3">
-          <button
-            onClick={onCancel}
-            disabled={saving}
-            className="flex-1 px-4 py-2 rounded-md border border-gray-600 text-gray-300 hover:bg-gray-800 disabled:opacity-50 transition-colors text-sm"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={!naming.name.trim() || saving}
-            className="flex-1 px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-          >
-            {saving ? "Saving..." : "Save Pose"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 async function seekTo(video: HTMLVideoElement, time: number): Promise<void> {
@@ -205,6 +36,8 @@ function VideoUploadFlow({ onSave }: { onSave: (pose: PoseDefinition) => void })
   const [pendingName, setPendingName] = useState("");
   const [pendingSanskrit, setPendingSanskrit] = useState("");
   const [pendingDifficulty, setPendingDifficulty] = useState<"beginner" | "intermediate" | "advanced">("beginner");
+  const [pendingMasterName, setPendingMasterName] = useState("");
+  const [pendingIsPublic, setPendingIsPublic] = useState(false);
   const [progressLabel, setProgressLabel] = useState("");
   const [detectedLandmarks, setDetectedLandmarks] = useState<Landmark[]>([]);
   const [videoSteps, setVideoSteps] = useState<VideoStep[]>([]);
@@ -253,14 +86,17 @@ function VideoUploadFlow({ onSave }: { onSave: (pose: PoseDefinition) => void })
       const ctx = canvas.getContext("2d")!;
 
       const totalFrames = CONFIG.VIDEO_ANALYSIS_FRAME_COUNT;
-      const interval = video.duration / totalFrames;
+      const trimStart = video.duration * 0.05;
+      const trimEnd = video.duration * 0.80;
+      const range = trimEnd - trimStart;
+      const interval = range / totalFrames;
       const frameDataUrls: string[] = [];
       const frameBase64: string[] = [];
       let landmarksForAngles: Landmark[] = [];
 
       for (let i = 0; i < totalFrames; i++) {
         setProgressLabel(`Extracting frames… ${i + 1}/${totalFrames}`);
-        await seekTo(video, i * interval);
+        await seekTo(video, trimStart + i * interval);
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
         frameDataUrls.push(dataUrl);
@@ -306,23 +142,56 @@ function VideoUploadFlow({ onSave }: { onSave: (pose: PoseDefinition) => void })
 
       const { steps: rawSteps } = await analyzeRes.json();
 
-      // Upload selected frame images to Vercel Blob
+      // Extract per-step reference landmarks and upload images to Vercel Blob
       setPhase("uploading");
       const assembled: VideoStep[] = [];
-      // Use canvas data URLs directly — no blob upload needed, avoids private-store auth issues
       const slug = poseSlug(pendingName);
+      let prevLandmarks: Landmark[] = landmarksForAngles;
       for (let i = 0; i < rawSteps.length; i++) {
         const s = rawSteps[i];
-        setProgressLabel(`Preparing step images… ${i + 1}/${rawSteps.length}`);
+        setProgressLabel(`Preparing step ${i + 1}/${rawSteps.length}…`);
         const frameIdx = Math.min(Math.max(0, s.frameIndex), frameDataUrls.length - 1);
-        const imageUrl = frameDataUrls[frameIdx];
-        console.log(`[VideoUpload] step ${i} (${slug}-step-${i}): frameIdx=${frameIdx} imageUrl length=${imageUrl.length}`);
+        const t = trimStart + frameIdx * interval;
+        let stepLandmarks: Landmark[] = prevLandmarks;
+        let stepConfidence = 0;
+        try {
+          await seekTo(video, t);
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const lm = await detectPoseFromImage(canvas);
+          if (lm && lm.length > 0) {
+            stepLandmarks = lm;
+            stepConfidence = lm.reduce((a, b) => a + (b.visibility ?? 0), 0) / lm.length;
+            prevLandmarks = lm;
+          }
+        } catch (e) {
+          console.warn(`[VideoUpload] per-step landmark extraction failed at step ${i}:`, e);
+        }
+
+        // Upload keyframe image to Vercel Blob
+        let imageUrl = frameDataUrls[frameIdx];
+        try {
+          const blob = await fetch(frameDataUrls[frameIdx]).then((r) => r.blob());
+          const form = new FormData();
+          form.append("file", new File([blob], `${slug}-step-${i}.jpg`, { type: "image/jpeg" }));
+          form.append("poseName", slug);
+          form.append("stepIndex", String(i));
+          const uploadRes = await fetch("/api/upload-image", { method: "POST", body: form });
+          if (uploadRes.ok) {
+            const { url } = await uploadRes.json();
+            imageUrl = url;
+          }
+        } catch (e) {
+          console.warn(`[VideoUpload] blob upload failed for step ${i}, using data URL:`, e);
+        }
+
         assembled.push({
           index: i,
           title: s.title,
           instruction: s.instruction,
           focusJoints: s.focusJoints ?? [],
           imageUrl,
+          referenceLandmarks: stepLandmarks,
+          referenceLandmarksConfidence: stepConfidence,
         });
       }
 
@@ -351,11 +220,60 @@ function VideoUploadFlow({ onSave }: { onSave: (pose: PoseDefinition) => void })
     setPendingName("");
     setPendingSanskrit("");
     setPendingDifficulty("beginner");
+    setPendingMasterName("");
+    setPendingIsPublic(false);
     setVideoSteps([]);
     setDetectedLandmarks([]);
     setFirstFrameUrl(null);
     setErrorMsg("");
   }, []);
+
+  useEffect(() => {
+    if (phase !== "done") return;
+
+    const autoSave = async () => {
+      setProgressLabel("Saving pose…");
+      try {
+        const angles = derivePoseAngles(detectedLandmarks);
+        const newPose: PoseDefinition = {
+          id: generatePoseId(pendingName),
+          name: pendingName,
+          sanskrit: pendingSanskrit || "",
+          description: `Custom pose recorded on ${new Date().toLocaleDateString()}`,
+          difficulty: pendingDifficulty,
+          imageUrl: firstFrameUrl || "/images/mountain.svg",
+          angles,
+          referenceLandmarks: detectedLandmarks,
+          isCustom: true,
+          recordedAt: new Date().toISOString(),
+          masterName: pendingMasterName || undefined,
+          isPublic: pendingIsPublic,
+          videoSteps: videoSteps && videoSteps.length > 0 ? videoSteps : undefined,
+        };
+
+        if (!videoSteps || videoSteps.length === 0) {
+          try {
+            const steps = await generateSteps(newPose);
+            newPose.cachedSteps = steps;
+          } catch (e) {
+            console.warn("[VideoUpload] Failed to generate steps:", e);
+          }
+        }
+
+        console.log("[VideoUpload] Auto-saving pose: id=%s name=%s videoSteps=%d cachedSteps=%d",
+          newPose.id, newPose.name, newPose.videoSteps?.length ?? 0, newPose.cachedSteps?.length ?? 0);
+        await saveCustomPose(newPose);
+        onSave(newPose);
+        reset();
+      } catch (e) {
+        console.error("[VideoUpload] Auto-save failed:", e);
+        setErrorMsg("Failed to save pose. Please try again.");
+        setPhase("error");
+      }
+    };
+
+    autoSave();
+  }, [phase, detectedLandmarks, pendingName, pendingSanskrit, pendingDifficulty, pendingMasterName, pendingIsPublic, firstFrameUrl, videoSteps]);
 
   if (phase === "idle" || phase === "error") {
     return (
@@ -444,7 +362,7 @@ function VideoUploadFlow({ onSave }: { onSave: (pose: PoseDefinition) => void })
             />
           </label>
 
-          <label className="block mb-5">
+          <label className="block mb-3">
             <span className="text-xs text-gray-400 mb-1 block uppercase tracking-wide">Difficulty</span>
             <select
               value={pendingDifficulty}
@@ -455,6 +373,27 @@ function VideoUploadFlow({ onSave }: { onSave: (pose: PoseDefinition) => void })
               <option value="intermediate">Intermediate</option>
               <option value="advanced">Advanced</option>
             </select>
+          </label>
+
+          <label className="block mb-3">
+            <span className="text-xs text-gray-400 mb-1 block uppercase tracking-wide">Master Name (optional)</span>
+            <input
+              type="text"
+              value={pendingMasterName}
+              onChange={(e) => setPendingMasterName(e.target.value)}
+              placeholder="e.g., John Doe"
+              className="w-full px-3 py-2 rounded-md bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+            />
+          </label>
+
+          <label className="block mb-5 flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={pendingIsPublic}
+              onChange={(e) => setPendingIsPublic(e.target.checked)}
+              className="w-4 h-4 rounded bg-gray-800 border border-gray-700 cursor-pointer"
+            />
+            <span className="text-xs text-gray-400 uppercase tracking-wide">Make Public</span>
           </label>
 
           <div className="flex gap-3">
@@ -490,112 +429,18 @@ function VideoUploadFlow({ onSave }: { onSave: (pose: PoseDefinition) => void })
 
   if (phase === "done") {
     return (
-      <NamingForm
-        capturedLandmarks={detectedLandmarks}
-        imageUrl={firstFrameUrl ?? undefined}
-        videoSteps={videoSteps}
-        onSave={onSave}
-        onCancel={reset}
-        onSaved={reset}
-      />
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+        <div className="flex flex-col items-center gap-3 bg-gray-900 rounded-lg p-6 border border-gray-700 max-w-xs w-full mx-4">
+          <div className="w-8 h-8 border-4 border-green-400 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-gray-300 text-center">{progressLabel}</p>
+        </div>
+      </div>
     );
   }
 
   return null;
 }
 
-export function RecordPoseFlow({ currentLandmarks, onSave }: RecordPoseFlowProps) {
-  const [state, dispatch] = useReducer(reducer, { phase: "idle", countdown: 0 });
-  const bufferRef = useRef<Landmark[][]>([]);
-
-  useEffect(() => {
-    if (state.phase !== "countdown") return;
-    const id = setInterval(() => dispatch({ type: "tick" }), 1000);
-    return () => clearInterval(id);
-  }, [state.phase]);
-
-  useEffect(() => {
-    if (state.phase !== "capturing") return;
-    bufferRef.current = [];
-    const id = setTimeout(() => dispatch({ type: "finish_capture" }), 2000);
-    return () => clearTimeout(id);
-  }, [state.phase]);
-
-  useEffect(() => {
-    if (state.phase === "capturing" && currentLandmarks && currentLandmarks.length > 0) {
-      bufferRef.current.push([...currentLandmarks]);
-    }
-  }, [state.phase, currentLandmarks]);
-
-  useEffect(() => {
-    if (state.phase !== "saved") return;
-    const id = setTimeout(() => dispatch({ type: "reset" }), 1500);
-    return () => clearTimeout(id);
-  }, [state.phase]);
-
-  const handleSavePose = (pose: PoseDefinition) => {
-    onSave(pose);
-    dispatch({ type: "save" });
-  };
-
-  if (state.phase === "countdown") {
-    return (
-      <div className="fixed inset-0 pointer-events-none flex items-center justify-center z-50">
-        <div className="flex flex-col items-center gap-3">
-          <div
-            className="text-8xl font-bold animate-pulse"
-            style={{ color: "rgba(120,180,255,0.9)", textShadow: "0 0 40px rgba(120,180,255,0.5)" }}
-          >
-            {state.countdown}
-          </div>
-          <p className="text-sm text-blue-200 opacity-70">Hold your pose…</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (state.phase === "capturing") {
-    return (
-      <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-2 px-5 py-2.5 rounded-full z-50 pointer-events-none"
-        style={{ background: "rgba(12,15,10,0.85)", border: "1px solid rgba(120,180,255,0.3)", backdropFilter: "blur(8px)" }}
-      >
-        <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-        <span className="text-sm text-blue-200">Capturing pose…</span>
-      </div>
-    );
-  }
-
-  if (state.phase === "naming") {
-    const averaged = averageLandmarks(bufferRef.current);
-    return (
-      <NamingForm
-        capturedLandmarks={averaged}
-        onSave={handleSavePose}
-        onCancel={() => dispatch({ type: "reset" })}
-        onSaved={() => dispatch({ type: "save" })}
-      />
-    );
-  }
-
-  if (state.phase === "saved") {
-    return (
-      <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-2 px-5 py-2.5 rounded-full z-50 pointer-events-none"
-        style={{ background: "rgba(12,15,10,0.85)", border: "1px solid rgba(95,173,91,0.4)", backdropFilter: "blur(8px)" }}
-      >
-        <span className="text-sm text-green-400">✓ Pose saved!</span>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col gap-2">
-      <button
-        onClick={() => dispatch({ type: "start" })}
-        className="px-3 py-2 text-xs font-medium rounded-md bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 transition-colors border border-blue-500/30"
-      >
-        📹 Record Pose
-      </button>
-      <VideoUploadFlow onSave={(pose) => { onSave(pose); dispatch({ type: "save" }); }} />
-    </div>
-  );
+export function RecordPoseFlow({ onSave }: RecordPoseFlowProps) {
+  return <VideoUploadFlow onSave={onSave} />;
 }

@@ -184,37 +184,39 @@ export function StepInstructionPanel({ stepFlow, onRetry, onSkipStep }: StepInst
           Step {currentStepIndex + 1} of {steps.length}
         </div>
 
-        {currentStep.imageUrl && (
-          <div
-            className="rounded-lg overflow-hidden"
-            style={{
-              aspectRatio: "16/9",
-              background: "var(--bg-raised)",
-              border: "1px solid var(--border)",
-            }}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={currentStep.imageUrl}
-              alt={`Step ${currentStepIndex + 1}: ${currentStep.title}`}
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
-            />
-          </div>
-        )}
+        <div key={`step-${currentStepIndex}`} className="step-fade-in flex flex-col gap-3">
+          {currentStep.imageUrl && (
+            <div
+              className="rounded-lg overflow-hidden"
+              style={{
+                aspectRatio: "16/9",
+                background: "var(--bg-raised)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={currentStep.imageUrl}
+                alt={`Step ${currentStepIndex + 1}: ${currentStep.title}`}
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              />
+            </div>
+          )}
 
-        <div className="flex flex-col gap-2">
-          <h3
-            className="text-sm font-semibold"
-            style={{ color: "var(--text-primary)", fontFamily: "var(--font-dm-sans)" }}
-          >
-            {currentStep.title}
-          </h3>
-          <p
-            className="text-xs leading-relaxed"
-            style={{ color: "var(--text-secondary)", fontFamily: "var(--font-dm-sans)" }}
-          >
-            {currentStep.instruction}
-          </p>
+          <div className="flex flex-col gap-2">
+            <h3
+              className="text-sm font-semibold"
+              style={{ color: "var(--text-primary)", fontFamily: "var(--font-dm-sans)" }}
+            >
+              {currentStep.title}
+            </h3>
+            <p
+              className="text-xs leading-relaxed"
+              style={{ color: "var(--text-secondary)", fontFamily: "var(--font-dm-sans)" }}
+            >
+              {currentStep.instruction}
+            </p>
+          </div>
         </div>
 
         <div className="flex flex-col gap-1">
@@ -260,7 +262,7 @@ export function StepInstructionPanel({ stepFlow, onRetry, onSkipStep }: StepInst
               alignSelf: "flex-end",
             }}
           >
-            Skip step →
+            Next step →
           </button>
         )}
       </div>

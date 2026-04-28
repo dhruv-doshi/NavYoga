@@ -57,17 +57,18 @@ export function comparePose(
       console.debug("[PoseComparison]   %s → correct  (%.1f° in [%.1f°, %.1f°])", joint, angleDeg, tolerantMin, tolerantMax);
     }
 
-    joints.push({ joint, status, angleDeg: angleDeg ?? 0, deviation, correctionText });
+    const jointScore = status === "unknown" ? 0 : status === "correct" ? 1 : Math.max(0, 1 - deviation / (CONFIG.POSE_MASTERY_TOLERANCE * 6));
+    joints.push({ joint, status, angleDeg: angleDeg ?? 0, deviation, correctionText, jointScore });
   }
 
-  // Score: only count joints that were actually detected (not "unknown")
+  // Score: average continuous joint scores (excluding unknowns)
   const evaluated = joints.filter((j) => j.status !== "unknown");
-  const correct = evaluated.filter((j) => j.status === "correct").length;
-  const score = evaluated.length > 0 ? Math.round((correct / evaluated.length) * 100) : 0;
+  const scoreSum = evaluated.reduce((acc, j) => acc + j.jointScore, 0);
+  const score = evaluated.length > 0 ? Math.round((scoreSum / evaluated.length) * 100) : 0;
 
   console.log(
-    "[PoseComparison] result: score=%d%% (%d/%d correct), corrections=%d, unknowns=%d",
-    score, correct, evaluated.length, corrections.length, joints.length - evaluated.length
+    "[PoseComparison] result: score=%d%% (%d evaluated), corrections=%d, unknowns=%d",
+    score, evaluated.length, corrections.length, joints.length - evaluated.length
   );
 
   return { poseId: pose.id, joints, score, corrections };

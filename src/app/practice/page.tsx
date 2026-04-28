@@ -24,13 +24,15 @@ import { RecordPoseFlow } from "@/components/RecordPoseFlow";
 import { StepInstructionPanel } from "@/components/StepInstructionPanel";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useStepFlow } from "@/hooks/useStepFlow";
-import { CONFIG } from "@/lib/config";
 import { cancelSpeech } from "@/lib/tts";
 import type { VideoDimensions, Landmark, AngleMap, PoseDefinition, PoseComparisonResult } from "@/lib/types";
 import { comparePose, comparisonToJointColors } from "@/lib/poseComparison";
+import { comparePoseLandmarks, comparePoseLandmarksAgainst } from "@/lib/landmarkComparison";
 import { generateFeedback, getFeedbackHeadline, type FeedbackItem } from "@/lib/feedback";
+import { maybeSpeakJointHint, clearJointHintGate } from "@/lib/jointHintGate";
 import type { JointColorMap } from "@/lib/drawing";
 import { loadCustomPoses, deleteCustomPose } from "@/lib/customPoses";
+import { migrateLocalStorageOnce } from "@/lib/migrateLocalStorage";
 import posesData from "@/data/poses.json";
 
 const POSES = posesData as unknown as PoseDefinition[];
@@ -54,17 +56,22 @@ export default function PracticePage() {
   const [practiceStarted, setPracticeStarted] = useState(false);
   const selectedPoseRef = useRef<PoseDefinition | null>(null);
   selectedPoseRef.current = selectedPose;
-  const lastDisplayedScoreRef = useRef<number>(-1);
   const [comparisonResult, setComparisonResult] = useState<PoseComparisonResult | null>(null);
   const [jointColors, setJointColors] = useState<JointColorMap | undefined>(undefined);
   const [feedbackItems, setFeedbackItems] = useState<FeedbackItem[]>([]);
   const [feedbackHeadline, setFeedbackHeadline] = useState("");
 
-  const { stepFlow, advanceIfReady, skipStep } = useStepFlow(selectedPose, practiceStarted);
+  const { stepFlow, advanceIfReady, skipStep, currentStepReference } = useStepFlow(selectedPose, practiceStarted);
+  const currentStepReferenceRef = useRef<Landmark[] | null>(null);
+  currentStepReferenceRef.current = currentStepReference;
 
-  // Load custom poses on mount
+  // Load custom poses on mount (with one-time localStorage migration)
   useEffect(() => {
-    setCustomPoses(loadCustomPoses());
+    (async () => {
+      await migrateLocalStorageOnce();
+      const poses = await loadCustomPoses();
+      setCustomPoses(poses);
+    })();
   }, []);
 
   // Called by Camera when stream is live
@@ -90,36 +97,62 @@ export default function PracticePage() {
         setJointColors(undefined);
         setFeedbackItems([]);
         setFeedbackHeadline("");
+        clearJointHintGate();
       }
       return next;
     });
   }, []);
 
   useEffect(() => {
-    lastDisplayedScoreRef.current = -1;
     setComparisonResult(null);
     setJointColors(undefined);
     setFeedbackItems([]);
     setFeedbackHeadline("");
     setPracticeStarted(false);
     cancelSpeech();
+    clearJointHintGate();
   }, [selectedPose]);
 
-  // Stable callback: runs comparePose on every angles update from PoseCanvas.
-  // Reads selectedPose via ref so it never needs to be in the dep array,
-  // which would recreate the callback and restart the RAF loop.
+  const handleLandmarks = useCallback((newLandmarks: Landmark[] | null) => {
+    setLandmarks(newLandmarks);
+    const pose = selectedPoseRef.current;
+    if (!pose || !newLandmarks || newLandmarks.length === 0) return;
+    if (!pose.referenceLandmarks || pose.referenceLandmarks.length === 0) return;
+
+    // Use per-step reference landmarks if available, otherwise fall back to pose-wide reference
+    const stepRef = currentStepReferenceRef.current;
+    const result = stepRef && stepRef.length > 0
+      ? comparePoseLandmarksAgainst(newLandmarks, stepRef, pose.id)
+      : comparePoseLandmarks(newLandmarks, pose);
+
+    setComparisonResult(result);
+    setJointColors(comparisonToJointColors(result));
+    const feedbackItems = generateFeedback(result);
+    setFeedbackItems(feedbackItems);
+    setFeedbackHeadline(getFeedbackHeadline(result.score));
+
+    // Per-joint corrective TTS hints (gated to avoid spamming)
+    for (const item of feedbackItems) {
+      const joint = result.joints.find((j) => j.joint === item.joint);
+      if (joint) {
+        maybeSpeakJointHint(joint.joint, joint.status !== "correct", joint.correctionText);
+      }
+    }
+
+    advanceIfReady(result);
+  }, [advanceIfReady]);
+
+  // Angle-based comparison — only used for poses without referenceLandmarks
   const handleAngles = useCallback((newAngles: AngleMap) => {
     setAngles(newAngles);
     const pose = selectedPoseRef.current;
     if (!pose || Object.keys(newAngles).length === 0) return;
+    if (pose.referenceLandmarks && pose.referenceLandmarks.length > 0) return;
     const result = comparePose(newAngles, pose);
-    if (Math.abs(result.score - lastDisplayedScoreRef.current) >= CONFIG.SCORE_UPDATE_THROTTLE) {
-      lastDisplayedScoreRef.current = result.score;
-      setComparisonResult(result);
-      setJointColors(comparisonToJointColors(result));
-      setFeedbackItems(generateFeedback(result));
-      setFeedbackHeadline(getFeedbackHeadline(result.score));
-    }
+    setComparisonResult(result);
+    setJointColors(comparisonToJointColors(result));
+    setFeedbackItems(generateFeedback(result));
+    setFeedbackHeadline(getFeedbackHeadline(result.score));
     advanceIfReady(result);
   }, [advanceIfReady]);
 
@@ -127,17 +160,16 @@ export default function PracticePage() {
   const score = comparisonResult?.score ?? 0;
   const allPoses = [...POSES, ...customPoses];
 
-  const handleDeletePose = (id: string) => {
-    deleteCustomPose(id);
-    setCustomPoses(loadCustomPoses());
-    if (selectedPose?.id === id) {
-      setSelectedPose(null);
-    }
+  const handleDeletePose = async (id: string) => {
+    await deleteCustomPose(id);
+    const updated = await loadCustomPoses();
+    setCustomPoses(updated);
+    if (selectedPose?.id === id) setSelectedPose(null);
   };
 
-  const handlePoseSaved = () => {
-    const updated = loadCustomPoses();
-    console.log("[Practice] handlePoseSaved: reloaded %d custom poses", updated.length, updated.map(p => p.name));
+  const handlePoseSaved = async () => {
+    const updated = await loadCustomPoses();
+    console.log("[Practice] handlePoseSaved: reloaded %d custom poses", updated.length);
     setCustomPoses(updated);
   };
 
@@ -197,7 +229,7 @@ export default function PracticePage() {
             dimensions={videoDims}
             showDebugAngles={showDebug}
             jointColors={jointColors}
-            onLandmarks={setLandmarks}
+            onLandmarks={handleLandmarks}
             onAngles={handleAngles}
             referenceLandmarks={null}
             showReferenceOverlay={false}
@@ -371,7 +403,6 @@ export default function PracticePage() {
           {cameraActive && (
             <div className="pt-2">
               <RecordPoseFlow
-                currentLandmarks={landmarks}
                 onSave={handlePoseSaved}
               />
             </div>

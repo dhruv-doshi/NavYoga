@@ -282,3 +282,12 @@ h1, h2, h3, h4, h5, h6 {
 .practice-sidebar {
   overflow-y: auto;
 }
+
+/* Step transition animation */
+@keyframes fadeSlide {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+.step-fade-in {
+  animation: fadeSlide 320ms cubic-bezier(.2,.8,.2,1);
+}

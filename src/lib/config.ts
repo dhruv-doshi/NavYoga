@@ -1,8 +1,6 @@
 export const CONFIG = {
   DETECTION_FPS: 10,
-  SCORE_UPDATE_THROTTLE: 15,
   POSE_MASTERY_TOLERANCE: 5,
-  STEP_ADVANCEMENT_THRESHOLD: 80,
   MAX_FEEDBACK_ITEMS: 3,
   FEEDBACK_WARNING_THRESHOLD: 15,
   TTS_MIN_GAP_MS: 8000,
@@ -21,4 +19,13 @@ export const CONFIG = {
     intermediate: { min: 4, max: 6 },
     advanced:     { min: 5, max: 8 },
   },
+  // Step advancement — stability-based
+  MASTERY_THRESHOLD: 75,
+  MASTERY_EMA_ALPHA: 0.25,
+  HOLD_WINDOW_FRAMES: 20,
+  HOLD_FRAMES_REQUIRED: 16,
+  MIN_STEP_DWELL_MS: 1500,
+  // Joint hint TTS gating
+  JOINT_HINT_DWELL_MS: 2000,
+  JOINT_HINT_REPEAT_MS: 12000,
 } as const;

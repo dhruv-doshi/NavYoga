@@ -10,6 +10,8 @@
 
 "use client";
 
+import { useAnimatedNumber } from "@/hooks/useAnimatedNumber";
+
 interface ScoreDisplayProps {
   score: number;
   poseSelected: boolean;
@@ -34,7 +36,8 @@ function scoreLabel(score: number): string {
 export default function ScoreDisplay({ score, poseSelected, analyzed }: ScoreDisplayProps) {
   const RADIUS = 36;
   const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
-  const clamped = Math.max(0, Math.min(100, score));
+  const animated = useAnimatedNumber(Math.max(0, Math.min(100, score)), 400);
+  const clamped = Math.max(0, Math.min(100, animated));
   const offset = CIRCUMFERENCE * (1 - clamped / 100);
   const color = scoreColor(clamped);
 
@@ -77,8 +80,9 @@ export default function ScoreDisplay({ score, poseSelected, analyzed }: ScoreDis
               <span
                 className="text-xl font-semibold tabular-nums leading-none"
                 style={{ color, fontFamily: "var(--font-dm-sans)", transition: "color 400ms ease" }}
+                aria-label={`Alignment score: ${Math.round(clamped)}%`}
               >
-                {clamped}
+                {Math.round(clamped)}
               </span>
               <span
                 className="text-[10px] leading-none mt-0.5"
@@ -147,9 +151,9 @@ export default function ScoreDisplay({ score, poseSelected, analyzed }: ScoreDis
             className="text-[10px] leading-relaxed"
             style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-dm-sans)" }}
           >
-            {clamped === 100
+            {Math.round(clamped) >= 100
               ? "All joints in target range"
-              : `${clamped}% of joints in target range`}
+              : `${Math.round(clamped)}% of joints in target range`}
           </p>
         )}
       </div>

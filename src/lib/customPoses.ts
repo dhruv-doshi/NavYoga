@@ -1,38 +1,19 @@
 import { calcAngle, CORRECTED_JOINTS } from "./angles";
 import type { Landmark, PoseDefinition, PoseAngleConstraint, PoseStep, VideoStep } from "./types";
+import {
+  loadCustomPosesRemote,
+  saveCustomPoseRemote,
+  deleteCustomPoseRemote,
+  updateCustomPoseStepsRemote,
+  updateCustomPoseVideoStepsRemote,
+} from "./posesClient";
 
 export const CUSTOM_POSES_KEY = "yoga_custom_poses_v1";
 
-export function loadCustomPoses(): PoseDefinition[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(CUSTOM_POSES_KEY);
-    return raw ? (JSON.parse(raw) as PoseDefinition[]) : [];
-  } catch (e) {
-    console.error("[customPoses] Failed to load custom poses:", e);
-    return [];
-  }
-}
-
-export function saveCustomPose(pose: PoseDefinition): void {
-  try {
-    const existing = loadCustomPoses();
-    const updated = [...existing.filter((p) => p.id !== pose.id), pose];
-    localStorage.setItem(CUSTOM_POSES_KEY, JSON.stringify(updated));
-  } catch (e) {
-    console.error("[customPoses] Failed to save custom pose:", e);
-  }
-}
-
-export function deleteCustomPose(id: string): void {
-  try {
-    const existing = loadCustomPoses();
-    const updated = existing.filter((p) => p.id !== id);
-    localStorage.setItem(CUSTOM_POSES_KEY, JSON.stringify(updated));
-  } catch (e) {
-    console.error("[customPoses] Failed to delete custom pose:", e);
-  }
-}
+// Re-export remote-backed functions under the original names for source compatibility
+export const loadCustomPoses = loadCustomPosesRemote;
+export const saveCustomPose = saveCustomPoseRemote;
+export const deleteCustomPose = deleteCustomPoseRemote;
 
 export function averageLandmarks(buffer: Landmark[][]): Landmark[] {
   if (buffer.length === 0) return [];
@@ -95,28 +76,5 @@ export function generatePoseId(name: string): string {
   return `custom_${slug}_${Date.now()}`;
 }
 
-export function updateCustomPoseSteps(id: string, steps: PoseStep[]): void {
-  try {
-    const existing = loadCustomPoses();
-    const pose = existing.find((p) => p.id === id);
-    if (pose) {
-      pose.cachedSteps = steps;
-      localStorage.setItem(CUSTOM_POSES_KEY, JSON.stringify(existing));
-    }
-  } catch (e) {
-    console.error("[customPoses] Failed to update pose steps:", e);
-  }
-}
-
-export function updateCustomPoseVideoSteps(id: string, videoSteps: VideoStep[]): void {
-  try {
-    const existing = loadCustomPoses();
-    const pose = existing.find((p) => p.id === id);
-    if (pose) {
-      pose.videoSteps = videoSteps;
-      localStorage.setItem(CUSTOM_POSES_KEY, JSON.stringify(existing));
-    }
-  } catch (e) {
-    console.error("[customPoses] Failed to update pose video steps:", e);
-  }
-}
+export const updateCustomPoseSteps = updateCustomPoseStepsRemote;
+export const updateCustomPoseVideoSteps = updateCustomPoseVideoStepsRemote;
