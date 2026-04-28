@@ -102,8 +102,8 @@ function VideoUploadFlow({ onSave }: { onSave: (pose: PoseDefinition) => void })
         frameDataUrls.push(dataUrl);
         frameBase64.push(dataUrl.split(",")[1]);
 
-        // Use first frame for landmark/angle detection
-        if (i === 0) {
+        // Try up to the first 3 frames for landmark/angle detection
+        if (landmarksForAngles.length === 0 && i < 3) {
           const lm = await detectPoseFromImage(canvas);
           if (lm && lm.length > 0) {
             landmarksForAngles = lm;
