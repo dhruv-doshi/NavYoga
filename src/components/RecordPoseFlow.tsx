@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef, useReducer, useCallback } from "react";
-import { averageLandmarks, derivePoseAngles, saveCustomPose, generatePoseId } from "@/lib/customPoses";
+import { averageLandmarks, derivePoseAngles, saveCustomPose, generatePoseId, updateCustomPoseSteps } from "@/lib/customPoses";
+import { generateSteps } from "@/lib/llm";
 import { detectPoseFromImage } from "@/lib/mediapipe";
 import { drawSkeleton } from "@/lib/drawing";
-import type { Landmark, PoseDefinition } from "@/lib/types";
+import { CONFIG } from "@/lib/config";
+import type { Landmark, PoseDefinition, VideoStep } from "@/lib/types";
 
 interface RecordPoseFlowProps {
   currentLandmarks: Landmark[] | null;
@@ -43,48 +45,72 @@ function reducer(state: RecordingState, action: Action): RecordingState {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Naming form shared by both record and upload paths
-// ---------------------------------------------------------------------------
-
 interface NamingFormProps {
   capturedLandmarks: Landmark[];
+  imageUrl?: string;
+  videoSteps?: VideoStep[];
   onSave: (pose: PoseDefinition) => void;
   onCancel: () => void;
   onSaved: () => void;
 }
 
-function NamingForm({ capturedLandmarks, onSave, onCancel, onSaved }: NamingFormProps) {
+function NamingForm({ capturedLandmarks, imageUrl, videoSteps, onSave, onCancel, onSaved }: NamingFormProps) {
   const [naming, setNaming] = useState<{
     name: string;
     sanskrit: string;
     difficulty: "beginner" | "intermediate" | "advanced";
   }>({ name: "", sanskrit: "", difficulty: "beginner" });
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!naming.name.trim()) return;
     if (capturedLandmarks.length === 0) {
       alert("No pose data captured. Please try again.");
       return;
     }
 
-    const angles = derivePoseAngles(capturedLandmarks);
-    const newPose: PoseDefinition = {
-      id: generatePoseId(naming.name),
-      name: naming.name,
-      sanskrit: naming.sanskrit || "",
-      description: `Custom pose recorded on ${new Date().toLocaleDateString()}`,
-      difficulty: naming.difficulty,
-      imageUrl: "/images/mountain.svg",
-      angles,
-      referenceLandmarks: capturedLandmarks,
-      isCustom: true,
-      recordedAt: new Date().toISOString(),
-    };
+    setSaving(true);
 
-    saveCustomPose(newPose);
-    onSave(newPose);
-    onSaved();
+    try {
+      const angles = derivePoseAngles(capturedLandmarks);
+      const newPose: PoseDefinition = {
+        id: generatePoseId(naming.name),
+        name: naming.name,
+        sanskrit: naming.sanskrit || "",
+        description: `Custom pose recorded on ${new Date().toLocaleDateString()}`,
+        difficulty: naming.difficulty,
+        imageUrl: imageUrl || "/images/mountain.svg",
+        angles,
+        referenceLandmarks: capturedLandmarks,
+        isCustom: true,
+        recordedAt: new Date().toISOString(),
+      };
+
+      if (videoSteps && videoSteps.length > 0) {
+        // Video steps already analyzed — skip LLM generation
+        newPose.videoSteps = videoSteps;
+      } else {
+        // Generate text-only steps via LLM
+        try {
+          const steps = await generateSteps(newPose);
+          newPose.cachedSteps = steps;
+        } catch (e) {
+          console.warn("[NamingForm] Failed to generate steps:", e);
+        }
+      }
+
+      console.log("[NamingForm] Saving pose: id=%s name=%s videoSteps=%d cachedSteps=%d",
+        newPose.id, newPose.name, newPose.videoSteps?.length ?? 0, newPose.cachedSteps?.length ?? 0);
+      saveCustomPose(newPose);
+      if (newPose.cachedSteps) {
+        updateCustomPoseSteps(newPose.id, newPose.cachedSteps);
+      }
+      console.log("[NamingForm] Pose saved to localStorage, calling onSave");
+      onSave(newPose);
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -98,9 +124,10 @@ function NamingForm({ capturedLandmarks, onSave, onCancel, onSaved }: NamingForm
             type="text"
             value={naming.name}
             onChange={(e) => setNaming({ ...naming, name: e.target.value })}
-            onKeyDown={(e) => e.key === "Enter" && handleSave()}
+            onKeyDown={(e) => e.key === "Enter" && !saving && handleSave()}
             placeholder="e.g., My Warrior I"
-            className="w-full px-3 py-2 rounded-md bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+            disabled={saving}
+            className="w-full px-3 py-2 rounded-md bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 disabled:opacity-50"
             autoFocus
           />
         </label>
@@ -112,7 +139,8 @@ function NamingForm({ capturedLandmarks, onSave, onCancel, onSaved }: NamingForm
             value={naming.sanskrit}
             onChange={(e) => setNaming({ ...naming, sanskrit: e.target.value })}
             placeholder="e.g., Virabhadrasana I"
-            className="w-full px-3 py-2 rounded-md bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+            disabled={saving}
+            className="w-full px-3 py-2 rounded-md bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 disabled:opacity-50"
           />
         </label>
 
@@ -123,7 +151,8 @@ function NamingForm({ capturedLandmarks, onSave, onCancel, onSaved }: NamingForm
             onChange={(e) =>
               setNaming({ ...naming, difficulty: e.target.value as "beginner" | "intermediate" | "advanced" })
             }
-            className="w-full px-3 py-2 rounded-md bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-blue-500"
+            disabled={saving}
+            className="w-full px-3 py-2 rounded-md bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-blue-500 disabled:opacity-50"
           >
             <option value="beginner">Beginner</option>
             <option value="intermediate">Intermediate</option>
@@ -134,16 +163,17 @@ function NamingForm({ capturedLandmarks, onSave, onCancel, onSaved }: NamingForm
         <div className="flex gap-3">
           <button
             onClick={onCancel}
-            className="flex-1 px-4 py-2 rounded-md border border-gray-600 text-gray-300 hover:bg-gray-800 transition-colors text-sm"
+            disabled={saving}
+            className="flex-1 px-4 py-2 rounded-md border border-gray-600 text-gray-300 hover:bg-gray-800 disabled:opacity-50 transition-colors text-sm"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
-            disabled={!naming.name.trim()}
+            disabled={!naming.name.trim() || saving}
             className="flex-1 px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm font-medium"
           >
-            Save Pose
+            {saving ? "Saving..." : "Save Pose"}
           </button>
         </div>
       </div>
@@ -151,64 +181,180 @@ function NamingForm({ capturedLandmarks, onSave, onCancel, onSaved }: NamingForm
   );
 }
 
-// ---------------------------------------------------------------------------
-// Photo upload sub-flow
-// ---------------------------------------------------------------------------
+async function seekTo(video: HTMLVideoElement, time: number): Promise<void> {
+  return new Promise((resolve) => {
+    const onSeeked = () => {
+      video.removeEventListener("seeked", onSeeked);
+      resolve();
+    };
+    video.addEventListener("seeked", onSeeked);
+    video.currentTime = time;
+  });
+}
 
-function UploadFlow({ onSave }: { onSave: (pose: PoseDefinition) => void }) {
-  const [phase, setPhase] = useState<"idle" | "detecting" | "preview" | "naming" | "error">("idle");
+function poseSlug(name: string): string {
+  return name.toLowerCase().replace(/[^\w]+/g, "-").replace(/^-|-$/g, "") || "pose";
+}
+
+type VideoPhase = "idle" | "loaded" | "naming" | "extracting" | "analyzing" | "uploading" | "done" | "error";
+
+function VideoUploadFlow({ onSave }: { onSave: (pose: PoseDefinition) => void }) {
+  const [phase, setPhase] = useState<VideoPhase>("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [pendingName, setPendingName] = useState("");
+  const [pendingSanskrit, setPendingSanskrit] = useState("");
+  const [pendingDifficulty, setPendingDifficulty] = useState<"beginner" | "intermediate" | "advanced">("beginner");
+  const [progressLabel, setProgressLabel] = useState("");
   const [detectedLandmarks, setDetectedLandmarks] = useState<Landmark[]>([]);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [videoSteps, setVideoSteps] = useState<VideoStep[]>([]);
+  const [firstFrameUrl, setFirstFrameUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = useCallback(async (file: File) => {
-    if (!file.type.startsWith("image/")) {
-      setErrorMsg("Please select an image file.");
+    if (!file.type.startsWith("video/")) {
+      setErrorMsg("Please select a video file.");
+      setPhase("error");
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    setVideoUrl(url);
+    setPhase("loaded");
+  }, []);
+
+  const processVideo = useCallback(async () => {
+    if (!videoUrl) return;
+
+    // Build a fresh off-screen video element — the DOM ref is gone once we leave "loaded" phase
+    const video = document.createElement("video");
+    video.src = videoUrl;
+    video.muted = true;
+    video.playsInline = true;
+    await new Promise<void>((resolve, reject) => {
+      video.onloadedmetadata = () => resolve();
+      video.onerror = () => reject(new Error("Failed to load video"));
+    });
+
+    console.log("[VideoUpload] processVideo started, duration=%ds", Math.round(video.duration));
+
+    if (video.duration > CONFIG.VIDEO_MAX_DURATION_S) {
+      setErrorMsg(`Video must be ${CONFIG.VIDEO_MAX_DURATION_S} seconds or shorter. Yours is ${Math.round(video.duration)}s.`);
       setPhase("error");
       return;
     }
 
-    const url = URL.createObjectURL(file);
-    setPreviewUrl(url);
-    setPhase("detecting");
+    setPhase("extracting");
+    setProgressLabel("Extracting frames…");
 
-    const img = new Image();
-    img.onload = async () => {
-      const landmarks = await detectPoseFromImage(img);
-      if (!landmarks || landmarks.length === 0) {
-        setErrorMsg("No person detected in the photo. Please try a clearer full-body image.");
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth || 480;
+      canvas.height = video.videoHeight || 360;
+      const ctx = canvas.getContext("2d")!;
+
+      const totalFrames = CONFIG.VIDEO_ANALYSIS_FRAME_COUNT;
+      const interval = video.duration / totalFrames;
+      const frameDataUrls: string[] = [];
+      const frameBase64: string[] = [];
+      let landmarksForAngles: Landmark[] = [];
+
+      for (let i = 0; i < totalFrames; i++) {
+        setProgressLabel(`Extracting frames… ${i + 1}/${totalFrames}`);
+        await seekTo(video, i * interval);
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+        frameDataUrls.push(dataUrl);
+        frameBase64.push(dataUrl.split(",")[1]);
+
+        // Use first frame for landmark/angle detection
+        if (i === 0) {
+          const lm = await detectPoseFromImage(canvas);
+          if (lm && lm.length > 0) {
+            landmarksForAngles = lm;
+            drawSkeleton(ctx, lm, canvas.width, canvas.height, undefined, false);
+            setFirstFrameUrl(canvas.toDataURL("image/jpeg", 0.85));
+          }
+        }
+      }
+
+      if (landmarksForAngles.length === 0) {
+        setErrorMsg("Could not detect a person in the video. Please use a clearer video.");
         setPhase("error");
-        URL.revokeObjectURL(url);
-        setPreviewUrl(null);
         return;
       }
-      setDetectedLandmarks(landmarks);
-      setPhase("preview");
 
-      // Draw skeleton on canvas after a short delay for canvas to mount
-      requestAnimationFrame(() => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
-        const w = canvas.width;
-        const h = canvas.height;
-        const imgEl = new Image();
-        imgEl.src = url;
-        imgEl.onload = () => {
-          ctx.clearRect(0, 0, w, h);
-          ctx.drawImage(imgEl, 0, 0, w, h);
-          drawSkeleton(ctx, landmarks, w, h, undefined, false);
-        };
+      setDetectedLandmarks(landmarksForAngles);
+
+      // Call Claude vision via OpenRouter to analyze transitions
+      setPhase("analyzing");
+      setProgressLabel("Analyzing pose transitions…");
+
+      const analyzeRes = await fetch("/api/analyze-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          frames: frameBase64,
+          difficulty: pendingDifficulty,
+          poseName: pendingName,
+        }),
       });
-    };
-    img.onerror = () => {
-      setErrorMsg("Failed to load the image.");
+
+      if (!analyzeRes.ok) {
+        const err = await analyzeRes.json();
+        throw new Error(err.error || "Video analysis failed");
+      }
+
+      const { steps: rawSteps } = await analyzeRes.json();
+
+      // Upload selected frame images to Vercel Blob
+      setPhase("uploading");
+      const assembled: VideoStep[] = [];
+      // Use canvas data URLs directly — no blob upload needed, avoids private-store auth issues
+      const slug = poseSlug(pendingName);
+      for (let i = 0; i < rawSteps.length; i++) {
+        const s = rawSteps[i];
+        setProgressLabel(`Preparing step images… ${i + 1}/${rawSteps.length}`);
+        const frameIdx = Math.min(Math.max(0, s.frameIndex), frameDataUrls.length - 1);
+        const imageUrl = frameDataUrls[frameIdx];
+        console.log(`[VideoUpload] step ${i} (${slug}-step-${i}): frameIdx=${frameIdx} imageUrl length=${imageUrl.length}`);
+        assembled.push({
+          index: i,
+          title: s.title,
+          instruction: s.instruction,
+          focusJoints: s.focusJoints ?? [],
+          imageUrl,
+        });
+      }
+
+      if (assembled.length === 0) {
+        throw new Error("No steps returned from analysis.");
+      }
+
+      setVideoSteps(assembled);
+      setPhase("done");
+    } catch (e) {
+      console.error("[VideoUpload] processVideo error:", e);
+      setErrorMsg(e instanceof Error ? e.message : "Failed to process video. Please try another.");
       setPhase("error");
-    };
-    img.src = url;
+    }
+  }, [videoUrl, pendingDifficulty, pendingName]);
+
+  // Kick off processing once we have name + difficulty (phase transitions to extracting)
+  const handleNamingSubmit = useCallback(() => {
+    if (!pendingName.trim()) return;
+    processVideo();
+  }, [pendingName, processVideo]);
+
+  const reset = useCallback(() => {
+    setPhase("idle");
+    setVideoUrl(null);
+    setPendingName("");
+    setPendingSanskrit("");
+    setPendingDifficulty("beginner");
+    setVideoSteps([]);
+    setDetectedLandmarks([]);
+    setFirstFrameUrl(null);
+    setErrorMsg("");
   }, []);
 
   if (phase === "idle" || phase === "error") {
@@ -218,15 +364,13 @@ function UploadFlow({ onSave }: { onSave: (pose: PoseDefinition) => void }) {
           onClick={() => fileInputRef.current?.click()}
           className="px-3 py-2 text-xs font-medium rounded-md bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 transition-colors border border-purple-500/30"
         >
-          🖼 Upload Photo
+          Upload Instructor Video
         </button>
-        {phase === "error" && (
-          <p className="text-xs text-red-400">{errorMsg}</p>
-        )}
+        {phase === "error" && <p className="text-xs text-red-400">{errorMsg}</p>}
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/*"
+          accept="video/*"
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
@@ -238,56 +382,121 @@ function UploadFlow({ onSave }: { onSave: (pose: PoseDefinition) => void }) {
     );
   }
 
-  if (phase === "detecting") {
+  if (phase === "loaded") {
     return (
-      <div className="flex items-center gap-2 px-3 py-2 text-xs text-blue-300">
-        <span className="w-3 h-3 border-2 border-blue-300 border-t-transparent rounded-full animate-spin" />
-        Detecting pose...
-      </div>
-    );
-  }
-
-  if (phase === "preview" && previewUrl) {
-    return (
-      <>
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 border border-gray-700 rounded-xl overflow-hidden max-w-lg w-full shadow-2xl">
-            <div className="relative">
-              {/* Composite: image + skeleton drawn on canvas */}
-              <canvas
-                ref={canvasRef}
-                width={480}
-                height={360}
-                className="w-full block"
-              />
-            </div>
-            <div className="p-4 flex gap-3">
-              <button
-                onClick={() => { setPhase("idle"); setPreviewUrl(null); }}
-                className="flex-1 px-4 py-2 rounded-md border border-gray-600 text-gray-300 hover:bg-gray-800 transition-colors text-sm"
-              >
-                Retake
-              </button>
-              <button
-                onClick={() => setPhase("naming")}
-                className="flex-1 px-4 py-2 rounded-md bg-purple-600 text-white hover:bg-purple-700 transition-colors text-sm font-medium"
-              >
-                Use This Pose
-              </button>
-            </div>
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+        <div className="bg-gray-900 border border-gray-700 rounded-xl overflow-hidden max-w-lg w-full shadow-2xl">
+          <div className="relative bg-black">
+            <video
+              src={videoUrl || ""}
+              controls
+              className="w-full aspect-video"
+              style={{ maxHeight: "360px" }}
+            />
+          </div>
+          <div className="p-4 flex gap-3">
+            <button
+              onClick={reset}
+              className="flex-1 px-4 py-2 rounded-md border border-gray-600 text-gray-300 hover:bg-gray-800 transition-colors text-sm"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => setPhase("naming")}
+              className="flex-1 px-4 py-2 rounded-md bg-purple-600 text-white hover:bg-purple-700 transition-colors text-sm font-medium"
+            >
+              Use This Video
+            </button>
           </div>
         </div>
-      </>
+      </div>
     );
   }
 
   if (phase === "naming") {
     return (
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+        <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-sm w-full mx-4 shadow-2xl">
+          <h3 className="text-lg font-bold mb-1 text-white">Name This Pose</h3>
+          <p className="text-xs text-gray-400 mb-4">Provide details before we analyze the video.</p>
+
+          <label className="block mb-3">
+            <span className="text-xs text-gray-400 mb-1 block uppercase tracking-wide">Pose Name *</span>
+            <input
+              type="text"
+              value={pendingName}
+              onChange={(e) => setPendingName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleNamingSubmit()}
+              placeholder="e.g., Warrior I"
+              autoFocus
+              className="w-full px-3 py-2 rounded-md bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+            />
+          </label>
+
+          <label className="block mb-3">
+            <span className="text-xs text-gray-400 mb-1 block uppercase tracking-wide">Sanskrit (optional)</span>
+            <input
+              type="text"
+              value={pendingSanskrit}
+              onChange={(e) => setPendingSanskrit(e.target.value)}
+              placeholder="e.g., Virabhadrasana I"
+              className="w-full px-3 py-2 rounded-md bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+            />
+          </label>
+
+          <label className="block mb-5">
+            <span className="text-xs text-gray-400 mb-1 block uppercase tracking-wide">Difficulty</span>
+            <select
+              value={pendingDifficulty}
+              onChange={(e) => setPendingDifficulty(e.target.value as "beginner" | "intermediate" | "advanced")}
+              className="w-full px-3 py-2 rounded-md bg-gray-800 border border-gray-700 text-white focus:outline-none focus:border-purple-500"
+            >
+              <option value="beginner">Beginner</option>
+              <option value="intermediate">Intermediate</option>
+              <option value="advanced">Advanced</option>
+            </select>
+          </label>
+
+          <div className="flex gap-3">
+            <button
+              onClick={() => setPhase("loaded")}
+              className="flex-1 px-4 py-2 rounded-md border border-gray-600 text-gray-300 hover:bg-gray-800 transition-colors text-sm"
+            >
+              Back
+            </button>
+            <button
+              onClick={handleNamingSubmit}
+              disabled={!pendingName.trim()}
+              className="flex-1 px-4 py-2 rounded-md bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+            >
+              Analyze Video
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === "extracting" || phase === "analyzing" || phase === "uploading") {
+    return (
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+        <div className="flex flex-col items-center gap-3 bg-gray-900 rounded-lg p-6 border border-gray-700 max-w-xs w-full mx-4">
+          <div className="w-8 h-8 border-4 border-purple-400 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-gray-300 text-center">{progressLabel}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (phase === "done") {
+    return (
       <NamingForm
         capturedLandmarks={detectedLandmarks}
+        imageUrl={firstFrameUrl ?? undefined}
+        videoSteps={videoSteps}
         onSave={onSave}
-        onCancel={() => setPhase("idle")}
-        onSaved={() => setPhase("idle")}
+        onCancel={reset}
+        onSaved={reset}
       />
     );
   }
@@ -295,39 +504,29 @@ function UploadFlow({ onSave }: { onSave: (pose: PoseDefinition) => void }) {
   return null;
 }
 
-// ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
-
 export function RecordPoseFlow({ currentLandmarks, onSave }: RecordPoseFlowProps) {
   const [state, dispatch] = useReducer(reducer, { phase: "idle", countdown: 0 });
-  // Buffer lives in a ref — never in reducer state — so frame collection
-  // doesn't re-render and the capture timer effect stays stable.
   const bufferRef = useRef<Landmark[][]>([]);
 
-  // ── Countdown tick (runs only once per second, stable)
   useEffect(() => {
     if (state.phase !== "countdown") return;
     const id = setInterval(() => dispatch({ type: "tick" }), 1000);
     return () => clearInterval(id);
   }, [state.phase]);
 
-  // ── Capture timer (2 s, only depends on phase — never cancelled by frames)
   useEffect(() => {
     if (state.phase !== "capturing") return;
-    bufferRef.current = []; // fresh buffer each capture session
+    bufferRef.current = [];
     const id = setTimeout(() => dispatch({ type: "finish_capture" }), 2000);
     return () => clearTimeout(id);
   }, [state.phase]);
 
-  // ── Frame collection (no cleanup — just pushes into the ref)
   useEffect(() => {
     if (state.phase === "capturing" && currentLandmarks && currentLandmarks.length > 0) {
       bufferRef.current.push([...currentLandmarks]);
     }
   }, [state.phase, currentLandmarks]);
 
-  // ── Auto-reset after "saved" flash
   useEffect(() => {
     if (state.phase !== "saved") return;
     const id = setTimeout(() => dispatch({ type: "reset" }), 1500);
@@ -339,7 +538,6 @@ export function RecordPoseFlow({ currentLandmarks, onSave }: RecordPoseFlowProps
     dispatch({ type: "save" });
   };
 
-  // ── Countdown overlay
   if (state.phase === "countdown") {
     return (
       <div className="fixed inset-0 pointer-events-none flex items-center justify-center z-50">
@@ -356,7 +554,6 @@ export function RecordPoseFlow({ currentLandmarks, onSave }: RecordPoseFlowProps
     );
   }
 
-  // ── Capturing overlay
   if (state.phase === "capturing") {
     return (
       <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-2 px-5 py-2.5 rounded-full z-50 pointer-events-none"
@@ -368,7 +565,6 @@ export function RecordPoseFlow({ currentLandmarks, onSave }: RecordPoseFlowProps
     );
   }
 
-  // ── Naming modal (after camera capture)
   if (state.phase === "naming") {
     const averaged = averageLandmarks(bufferRef.current);
     return (
@@ -381,7 +577,6 @@ export function RecordPoseFlow({ currentLandmarks, onSave }: RecordPoseFlowProps
     );
   }
 
-  // ── Saved confirmation
   if (state.phase === "saved") {
     return (
       <div className="fixed bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-2 px-5 py-2.5 rounded-full z-50 pointer-events-none"
@@ -392,7 +587,6 @@ export function RecordPoseFlow({ currentLandmarks, onSave }: RecordPoseFlowProps
     );
   }
 
-  // ── Idle: show both buttons
   return (
     <div className="flex flex-col gap-2">
       <button
@@ -401,7 +595,7 @@ export function RecordPoseFlow({ currentLandmarks, onSave }: RecordPoseFlowProps
       >
         📹 Record Pose
       </button>
-      <UploadFlow onSave={(pose) => { onSave(pose); dispatch({ type: "save" }); }} />
+      <VideoUploadFlow onSave={(pose) => { onSave(pose); dispatch({ type: "save" }); }} />
     </div>
   );
 }

@@ -276,12 +276,9 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* ============================================================
-   Practice page — mobile scrollable sidebar
+   Practice page — layout
    ============================================================ */
 
-@media (max-width: 1023px) {
-  .practice-sidebar {
-    max-height: 60vh;
-    overflow-y: auto;
-  }
+.practice-sidebar {
+  overflow-y: auto;
 }

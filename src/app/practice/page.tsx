@@ -21,7 +21,6 @@ import PoseSelector from "@/components/PoseSelector";
 import FeedbackPanel from "@/components/FeedbackPanel";
 import ScoreDisplay from "@/components/ScoreDisplay";
 import { RecordPoseFlow } from "@/components/RecordPoseFlow";
-import { MasterPosePanel } from "@/components/MasterPosePanel";
 import { StepInstructionPanel } from "@/components/StepInstructionPanel";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useStepFlow } from "@/hooks/useStepFlow";
@@ -49,9 +48,10 @@ export default function PracticePage() {
   const [showDebug, setShowDebug] = useState(false);
 
   const [customPoses, setCustomPoses] = useState<PoseDefinition[]>([]);
-  const [showReference, setShowReference] = useState(true);
+  const [showPoseInfo, setShowPoseInfo] = useState(false);
 
   const [selectedPose, setSelectedPose] = useState<PoseDefinition | null>(null);
+  const [practiceStarted, setPracticeStarted] = useState(false);
   const selectedPoseRef = useRef<PoseDefinition | null>(null);
   selectedPoseRef.current = selectedPose;
   const lastDisplayedScoreRef = useRef<number>(-1);
@@ -60,7 +60,7 @@ export default function PracticePage() {
   const [feedbackItems, setFeedbackItems] = useState<FeedbackItem[]>([]);
   const [feedbackHeadline, setFeedbackHeadline] = useState("");
 
-  const { stepFlow, advanceIfReady } = useStepFlow(selectedPose);
+  const { stepFlow, advanceIfReady, skipStep } = useStepFlow(selectedPose, practiceStarted);
 
   // Load custom poses on mount
   useEffect(() => {
@@ -101,6 +101,7 @@ export default function PracticePage() {
     setJointColors(undefined);
     setFeedbackItems([]);
     setFeedbackHeadline("");
+    setPracticeStarted(false);
     cancelSpeech();
   }, [selectedPose]);
 
@@ -135,20 +136,27 @@ export default function PracticePage() {
   };
 
   const handlePoseSaved = () => {
-    setCustomPoses(loadCustomPoses());
+    const updated = loadCustomPoses();
+    console.log("[Practice] handlePoseSaved: reloaded %d custom poses", updated.length, updated.map(p => p.name));
+    setCustomPoses(updated);
+  };
+
+  const handlePracticeStarted = () => {
+    console.log("[Practice] practiceStarted → true for pose %s", selectedPose?.name);
+    setPracticeStarted(true);
   };
 
   return (
     <ErrorBoundary>
     <div
-      className="flex flex-col lg:flex-row flex-1 h-full"
-      style={{ minHeight: "calc(100vh - 3.5rem)" }}
+      className="flex flex-col lg:flex-row flex-1 h-full overflow-hidden"
+      style={{ height: "calc(100vh - 3.5rem)" }}
     >
       {/* =======================================================================
           LEFT PANEL — Camera feed + skeleton overlay
           ======================================================================= */}
       <div
-        className="relative flex-1 min-h-[50vh] lg:min-h-0"
+        className="relative flex-1 min-h-[50vh] lg:min-h-0 overflow-hidden"
         style={{ background: "var(--bg-base)" }}
       >
         {/* Camera (only rendered when active) */}
@@ -191,8 +199,8 @@ export default function PracticePage() {
             jointColors={jointColors}
             onLandmarks={setLandmarks}
             onAngles={handleAngles}
-            referenceLandmarks={selectedPose?.referenceLandmarks ?? null}
-            showReferenceOverlay={showReference && !!selectedPose?.referenceLandmarks}
+            referenceLandmarks={null}
+            showReferenceOverlay={false}
           />
         )}
 
@@ -243,23 +251,6 @@ export default function PracticePage() {
 
         {/* ── Top-right controls ── */}
         <div className="absolute top-4 right-4 flex items-center gap-2">
-          {cameraActive && videoEl && selectedPose?.referenceLandmarks && (
-            <button
-              onClick={() => setShowReference((v) => !v)}
-              className="px-3 py-1.5 rounded-full text-xs font-semibold transition-colors"
-              style={{
-                background: showReference ? "rgba(120,180,255,0.15)" : "rgba(12,15,10,0.85)",
-                border: showReference ? "1px solid rgba(120,180,255,0.4)" : "1px solid rgba(255,255,255,0.15)",
-                color: showReference ? "rgba(120,180,255,0.9)" : "#ffffff",
-                fontFamily: "var(--font-dm-sans)",
-                backdropFilter: "blur(8px)",
-              }}
-              aria-pressed={showReference}
-              title="Toggle reference skeleton overlay"
-            >
-              Ghost
-            </button>
-          )}
           {cameraActive && videoEl && (
             <button
               onClick={() => setShowDebug((v) => !v)}
@@ -332,7 +323,7 @@ export default function PracticePage() {
           RIGHT PANEL — Controls, feedback, score
           ======================================================================= */}
       <aside
-        className="practice-sidebar w-full lg:w-80 xl:w-96 flex flex-col gap-px"
+        className="practice-sidebar w-full lg:w-[360px] xl:w-[440px] flex flex-col gap-px h-full"
         style={{ borderLeft: "1px solid var(--border)", background: "var(--bg-surface)" }}
         aria-label="Practice controls and feedback"
       >
@@ -344,12 +335,30 @@ export default function PracticePage() {
           className="p-5 flex flex-col gap-3"
           style={{ borderBottom: "1px solid var(--border)" }}
         >
-          <h2
-            className="text-xs font-semibold uppercase tracking-widest"
-            style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-dm-sans)" }}
-          >
-            Target Pose
-          </h2>
+          <div className="flex items-center justify-between">
+            <h2
+              className="text-xs font-semibold uppercase tracking-widest"
+              style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-dm-sans)" }}
+            >
+              Target Pose
+            </h2>
+            {selectedPose && (
+              <button
+                onClick={() => setShowPoseInfo(true)}
+                className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
+                style={{
+                  background: "rgba(120,180,255,0.15)",
+                  border: "1px solid rgba(120,180,255,0.4)",
+                  color: "rgba(120,180,255,0.9)",
+                  fontFamily: "var(--font-dm-sans)",
+                }}
+                aria-label="Pose information"
+                title="View pose details and steps"
+              >
+                i
+              </button>
+            )}
+          </div>
           <PoseSelector
             poses={allPoses}
             selectedId={selectedPose?.id ?? null}
@@ -359,38 +368,6 @@ export default function PracticePage() {
             }}
             onDelete={handleDeletePose}
           />
-          {selectedPose && (
-            <div className="flex items-start gap-3">
-              {/* Pose illustration */}
-              <div
-                className="flex-shrink-0 rounded-lg overflow-hidden flex items-center justify-center"
-                style={{
-                  width: 72,
-                  height: 72,
-                  background: "var(--bg-raised)",
-                  border: "1px solid var(--border)",
-                }}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={selectedPose.imageUrl}
-                  alt={selectedPose.name}
-                  style={{ width: 60, height: 60, objectFit: "contain" }}
-                />
-              </div>
-              <p
-                className="text-xs leading-relaxed flex-1"
-                style={{
-                  color: "var(--text-tertiary)",
-                  fontFamily: "var(--font-dm-sans)",
-                  fontStyle: "italic",
-                }}
-              >
-                {selectedPose.description}
-              </p>
-            </div>
-          )}
-
           {cameraActive && (
             <div className="pt-2">
               <RecordPoseFlow
@@ -401,30 +378,45 @@ export default function PracticePage() {
           )}
         </div>
 
-        {/* Master pose reference */}
-        {selectedPose && <MasterPosePanel pose={selectedPose} />}
-
-        {/* Step-by-step instructions or feedback */}
-        {selectedPose && stepFlow.steps.length > 0 && (
-          <StepInstructionPanel stepFlow={stepFlow} />
+        {/* Start button */}
+        {selectedPose && !practiceStarted && (
+          <div
+            className="p-5 flex flex-col gap-3"
+            style={{ borderBottom: "1px solid var(--border)" }}
+          >
+            <button
+              onClick={handlePracticeStarted}
+              className="w-full px-4 py-3 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors"
+              style={{ fontFamily: "var(--font-dm-sans)" }}
+            >
+              ▶ Start Practice
+            </button>
+          </div>
         )}
 
-        {/* Score section */}
-        <div
-          className="p-5 flex flex-col gap-3"
-          style={{ borderBottom: "1px solid var(--border)" }}
-        >
-          <h2
-            className="text-xs font-semibold uppercase tracking-widest"
-            style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-dm-sans)" }}
-          >
-            Pose Mastery Score
-          </h2>
-          <ScoreDisplay score={score} poseSelected={!!selectedPose} analyzed={comparisonResult !== null} />
-        </div>
+        {/* Step-by-step instructions while practicing */}
+        {practiceStarted && selectedPose && (
+          <StepInstructionPanel stepFlow={stepFlow} onRetry={() => setPracticeStarted(true)} onSkipStep={skipStep} />
+        )}
 
-        {/* Feedback panel (shown when step flow not available or in fallback mode) */}
-        {!stepFlow.steps.length && (
+        {/* Score section — only show when actively practicing */}
+        {practiceStarted && (
+          <div
+            className="p-5 flex flex-col gap-3"
+            style={{ borderBottom: "1px solid var(--border)" }}
+          >
+            <h2
+              className="text-xs font-semibold uppercase tracking-widest"
+              style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-dm-sans)" }}
+            >
+              Pose Mastery Score
+            </h2>
+            <ScoreDisplay score={score} poseSelected={!!selectedPose} analyzed={comparisonResult !== null} />
+          </div>
+        )}
+
+        {/* Feedback panel (shown when practicing and step flow not available) */}
+        {practiceStarted && !stepFlow.steps.length && (
           <div className="p-5 flex flex-col gap-3 flex-1">
             <h2
               className="text-xs font-semibold uppercase tracking-widest"
@@ -488,6 +480,82 @@ export default function PracticePage() {
           </div>
         )}
       </aside>
+
+      {/* Pose Info Modal */}
+      {showPoseInfo && selectedPose && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+          onClick={() => setShowPoseInfo(false)}
+        >
+          <div
+            className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+            style={{ fontFamily: "var(--font-dm-sans)" }}
+          >
+            {/* Header */}
+            <div className="flex items-start justify-between mb-6">
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-white">{selectedPose.name}</h3>
+                {selectedPose.sanskrit && (
+                  <p className="text-sm text-gray-400 italic mt-1">{selectedPose.sanskrit}</p>
+                )}
+              </div>
+              <button
+                onClick={() => setShowPoseInfo(false)}
+                className="text-gray-400 hover:text-white text-xl font-bold"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Metadata */}
+            <div className="flex gap-4 mb-6 text-xs text-gray-400">
+              <span className="capitalize px-2 py-1 rounded bg-gray-800">{selectedPose.difficulty}</span>
+              <span>
+                {(selectedPose.videoSteps?.length ?? selectedPose.cachedSteps?.length ?? 0)} step
+                {(selectedPose.videoSteps?.length ?? selectedPose.cachedSteps?.length ?? 0) !== 1 ? "s" : ""}
+              </span>
+            </div>
+
+            {/* Steps */}
+            <div className="space-y-4">
+              {selectedPose.videoSteps && selectedPose.videoSteps.length > 0
+                ? selectedPose.videoSteps.map((step, idx) => (
+                    <div key={idx} className="border border-gray-700 rounded-lg overflow-hidden">
+                      {step.imageUrl && (
+                        <div
+                          className="w-full h-40 overflow-hidden"
+                          style={{ background: "var(--bg-raised)" }}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={step.imageUrl}
+                            alt={`Step ${idx + 1}: ${step.title}`}
+                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                          />
+                        </div>
+                      )}
+                      <div className="p-4 bg-gray-800">
+                        <h4 className="text-sm font-semibold text-white mb-1">
+                          Step {idx + 1}: {step.title}
+                        </h4>
+                        <p className="text-xs text-gray-300 leading-relaxed">{step.instruction}</p>
+                      </div>
+                    </div>
+                  ))
+                : selectedPose.cachedSteps?.map((step, idx) => (
+                    <div key={idx} className="border border-gray-700 rounded-lg p-4 bg-gray-800">
+                      <h4 className="text-sm font-semibold text-white mb-1">
+                        Step {idx + 1}: {step.title}
+                      </h4>
+                      <p className="text-xs text-gray-300 leading-relaxed">{step.instruction}</p>
+                    </div>
+                  ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
     </ErrorBoundary>
   );

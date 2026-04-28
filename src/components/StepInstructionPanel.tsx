@@ -3,9 +3,10 @@ import type { StepFlowState } from "@/lib/types";
 interface StepInstructionPanelProps {
   stepFlow: StepFlowState;
   onRetry?: () => void;
+  onSkipStep?: () => void;
 }
 
-export function StepInstructionPanel({ stepFlow, onRetry }: StepInstructionPanelProps) {
+export function StepInstructionPanel({ stepFlow, onRetry, onSkipStep }: StepInstructionPanelProps) {
   const { steps, currentStepIndex, stepMasteryScore, isLoading, error, isComplete } = stepFlow;
 
   if (isLoading) {
@@ -38,7 +39,39 @@ export function StepInstructionPanel({ stepFlow, onRetry }: StepInstructionPanel
     );
   }
 
+  if (isLoading || (steps.length === 0 && !error)) {
+    console.log("[StepPanel] isLoading=%s, steps=%d, error=%s", isLoading, steps.length, error);
+    return (
+      <div
+        className="p-5 flex flex-col gap-3"
+        style={{ borderBottom: "1px solid var(--border)" }}
+      >
+        <h2
+          className="text-xs font-semibold uppercase tracking-widest"
+          style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-dm-sans)" }}
+        >
+          Steps
+        </h2>
+        <div className="flex flex-col gap-2">
+          <div
+            className="h-4 bg-gradient-to-r from-transparent via-gray-400 to-transparent rounded animate-pulse"
+            style={{ width: "80%" }}
+          />
+          <div
+            className="h-3 bg-gradient-to-r from-transparent via-gray-400 to-transparent rounded animate-pulse"
+            style={{ width: "100%" }}
+          />
+          <div
+            className="h-3 bg-gradient-to-r from-transparent via-gray-400 to-transparent rounded animate-pulse"
+            style={{ width: "90%" }}
+          />
+        </div>
+      </div>
+    );
+  }
+
   if (error) {
+    console.log("[StepPanel] error state: %s", error);
     return (
       <div
         className="p-5 flex flex-col gap-3"
@@ -151,6 +184,24 @@ export function StepInstructionPanel({ stepFlow, onRetry }: StepInstructionPanel
           Step {currentStepIndex + 1} of {steps.length}
         </div>
 
+        {currentStep.imageUrl && (
+          <div
+            className="rounded-lg overflow-hidden"
+            style={{
+              aspectRatio: "16/9",
+              background: "var(--bg-raised)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={currentStep.imageUrl}
+              alt={`Step ${currentStepIndex + 1}: ${currentStep.title}`}
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+            />
+          </div>
+        )}
+
         <div className="flex flex-col gap-2">
           <h3
             className="text-sm font-semibold"
@@ -192,6 +243,26 @@ export function StepInstructionPanel({ stepFlow, onRetry }: StepInstructionPanel
             />
           </div>
         </div>
+
+        {onSkipStep && !isComplete && (
+          <button
+            onClick={onSkipStep}
+            className="text-xs"
+            style={{
+              color: "var(--text-tertiary)",
+              fontFamily: "var(--font-dm-sans)",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              textDecoration: "underline",
+              textUnderlineOffset: "2px",
+              padding: 0,
+              alignSelf: "flex-end",
+            }}
+          >
+            Skip step →
+          </button>
+        )}
       </div>
     </div>
   );

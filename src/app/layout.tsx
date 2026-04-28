@@ -13,7 +13,7 @@ import type { Metadata, Viewport } from "next";
 import { Playfair_Display, DM_Sans } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/Header";
-import Footer from "@/components/Footer";
+import ConditionalFooter from "@/components/ConditionalFooter";
 
 // ---------------------------------------------------------------------------
 // Font configuration
@@ -103,8 +103,8 @@ export default function RootLayout({
           {children}
         </main>
 
-        {/* Persistent footer */}
-        <Footer />
+        {/* Conditional footer — not shown on practice page */}
+        <ConditionalFooter />
       </body>
     </html>
   );

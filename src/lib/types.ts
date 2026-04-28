@@ -96,6 +96,10 @@ export interface PoseDefinition {
   isCustom?: boolean;
   /** ISO timestamp when this pose was recorded */
   recordedAt?: string;
+  /** LLM-generated step instructions (cached to avoid re-calling LLM) */
+  cachedSteps?: PoseStep[];
+  /** Video-derived steps with instructor frame images */
+  videoSteps?: VideoStep[];
 }
 
 // ---------------------------------------------------------------------------
@@ -173,6 +177,19 @@ export interface PoseStep {
   title: string;
   instruction: string;
   focusJoints: string[];
+  /** Present when this step was derived from a video frame */
+  imageUrl?: string;
+}
+
+/**
+ * A video-derived step — same as PoseStep but imageUrl is required.
+ */
+export interface VideoStep {
+  index: number;
+  title: string;
+  instruction: string;
+  focusJoints: string[];
+  imageUrl: string;
 }
 
 /**

@@ -10,4 +10,15 @@ export const CONFIG = {
   LLM_MODEL: "meta-llama/llama-3.1-8b-instruct",
   LLM_BASE_URL: "https://openrouter.ai/api/v1",
   LLM_MAX_STEPS: 6,
+  VIDEO_FRAME_INTERVAL_MS: 500,
+  VIDEO_MIN_FRAMES: 3,
+  VIDEO_BEST_FRAMES_COUNT: 5,
+  VIDEO_MAX_DURATION_S: 15,
+  VIDEO_ANALYSIS_FRAME_COUNT: 10,
+  CLAUDE_VISION_MODEL: "qwen/qwen3.6-flash",
+  STEPS_BY_DIFFICULTY: {
+    beginner:     { min: 3, max: 4 },
+    intermediate: { min: 4, max: 6 },
+    advanced:     { min: 5, max: 8 },
+  },
 } as const;

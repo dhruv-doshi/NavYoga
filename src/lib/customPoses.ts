@@ -1,5 +1,5 @@
 import { calcAngle, CORRECTED_JOINTS } from "./angles";
-import type { Landmark, PoseDefinition, PoseAngleConstraint } from "./types";
+import type { Landmark, PoseDefinition, PoseAngleConstraint, PoseStep, VideoStep } from "./types";
 
 export const CUSTOM_POSES_KEY = "yoga_custom_poses_v1";
 
@@ -93,4 +93,30 @@ export function generatePoseId(name: string): string {
     .replace(/-+/g, "-")
     .trim();
   return `custom_${slug}_${Date.now()}`;
+}
+
+export function updateCustomPoseSteps(id: string, steps: PoseStep[]): void {
+  try {
+    const existing = loadCustomPoses();
+    const pose = existing.find((p) => p.id === id);
+    if (pose) {
+      pose.cachedSteps = steps;
+      localStorage.setItem(CUSTOM_POSES_KEY, JSON.stringify(existing));
+    }
+  } catch (e) {
+    console.error("[customPoses] Failed to update pose steps:", e);
+  }
+}
+
+export function updateCustomPoseVideoSteps(id: string, videoSteps: VideoStep[]): void {
+  try {
+    const existing = loadCustomPoses();
+    const pose = existing.find((p) => p.id === id);
+    if (pose) {
+      pose.videoSteps = videoSteps;
+      localStorage.setItem(CUSTOM_POSES_KEY, JSON.stringify(existing));
+    }
+  } catch (e) {
+    console.error("[customPoses] Failed to update pose video steps:", e);
+  }
 }
