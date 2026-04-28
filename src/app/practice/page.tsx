@@ -33,6 +33,7 @@ import { maybeSpeakJointHint, clearJointHintGate } from "@/lib/jointHintGate";
 import type { JointColorMap } from "@/lib/drawing";
 import { loadCustomPoses, deleteCustomPose } from "@/lib/customPoses";
 import { migrateLocalStorageOnce } from "@/lib/migrateLocalStorage";
+import { loadPublicPoses } from "@/lib/posesClient";
 import posesData from "@/data/poses.json";
 
 const POSES = posesData as unknown as PoseDefinition[];
@@ -50,6 +51,7 @@ export default function PracticePage() {
   const [showDebug, setShowDebug] = useState(false);
 
   const [customPoses, setCustomPoses] = useState<PoseDefinition[]>([]);
+  const [publicPoses, setPublicPoses] = useState<PoseDefinition[]>([]);
   const [showPoseInfo, setShowPoseInfo] = useState(false);
 
   const [selectedPose, setSelectedPose] = useState<PoseDefinition | null>(null);
@@ -65,12 +67,18 @@ export default function PracticePage() {
   const currentStepReferenceRef = useRef<Landmark[] | null>(null);
   currentStepReferenceRef.current = currentStepReference;
 
-  // Load custom poses on mount (with one-time localStorage migration)
+  // Load custom and public poses on mount (with one-time localStorage migration)
   useEffect(() => {
     (async () => {
       await migrateLocalStorageOnce();
-      const poses = await loadCustomPoses();
-      setCustomPoses(poses);
+      const [myPoses, communityPoses] = await Promise.all([
+        loadCustomPoses(),
+        loadPublicPoses(),
+      ]);
+      setCustomPoses(myPoses);
+      // Exclude public poses already owned by this user (they're in myPoses)
+      const myIds = new Set(myPoses.map((p) => p.id));
+      setPublicPoses(communityPoses.filter((p) => !myIds.has(p.id)));
     })();
   }, []);
 
@@ -158,7 +166,7 @@ export default function PracticePage() {
 
   const poseDetected = landmarks !== null && landmarks.length > 0;
   const score = comparisonResult?.score ?? 0;
-  const allPoses = [...POSES, ...customPoses];
+  const allPoses = [...POSES, ...customPoses, ...publicPoses];
 
   const handleDeletePose = async (id: string) => {
     await deleteCustomPose(id);
@@ -262,8 +270,8 @@ export default function PracticePage() {
             </div>
           )}
 
-          {/* Score badge when a pose is selected */}
-          {selectedPose && comparisonResult && (
+          {/* Score badge when a pose is selected and not yet complete */}
+          {selectedPose && comparisonResult && !stepFlow.isComplete && (
             <div
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
               style={{
@@ -430,8 +438,8 @@ export default function PracticePage() {
           <StepInstructionPanel stepFlow={stepFlow} onRetry={() => setPracticeStarted(true)} onSkipStep={skipStep} />
         )}
 
-        {/* Score section — only show when actively practicing */}
-        {practiceStarted && (
+        {/* Score section — only show when actively practicing, not after pose is complete */}
+        {practiceStarted && !stepFlow.isComplete && (
           <div
             className="p-5 flex flex-col gap-3"
             style={{ borderBottom: "1px solid var(--border)" }}
