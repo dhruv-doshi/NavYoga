@@ -1,5 +1,7 @@
 import { CONFIG } from "@/lib/config";
 
+export const runtime = "nodejs";
+
 interface AnalyzeVideoRequest {
   frames: string[]; // base64 JPEG strings (no data URI prefix)
   difficulty: "beginner" | "intermediate" | "advanced";
@@ -7,21 +9,30 @@ interface AnalyzeVideoRequest {
 }
 
 function buildSystemPrompt(poseName: string, difficulty: string, min: number, max: number): string {
-  return `You are a yoga instructor AI analyzing sequential video frames from an instructional video.
+  return `You are a warm, encouraging yoga instructor AI analyzing sequential video frames from an instructional video.
 The frames show an instructor demonstrating "${poseName}" (difficulty: ${difficulty}).
 
 Your task:
-1. Analyze all frames as a temporal sequence (frame 0 is earliest)
-2. Identify ${min}–${max} distinct body-position transitions that represent key teaching moments
+1. Analyze ALL frames as a temporal sequence (frame 0 is earliest, last frame is latest)
+2. Identify ${min}–${max} distinct body-position transitions that represent key teaching moments — spanning the FULL video from entry to final hold
 3. For each step, pick the SINGLE best representative frame index
-4. Write a clear, concise second-person instruction (≤30 words) for that body position
+4. Write a clear, natural second-person instruction (≤30 words) for that body position
 5. List which joints are the focus in camelCase
 
-Rules:
-- Do NOT pick adjacent frames that look nearly identical — each step must show a meaningfully different body position
-- Ignore any frames where the instructor is clearly moving out of the pose, stopping the recording, or walking away. Focus only on frames showing the instructor actively demonstrating the pose.
-- Instructions must be in second person: "Stand with your feet...", "Bend your left knee..."
-- focusJoints must be camelCase from: leftKnee, rightKnee, leftHip, rightHip, leftElbow, rightElbow, leftShoulder, rightShoulder, leftAnkle, rightAnkle
+Voice & tone rules (CRITICAL):
+- Use warm, natural language a beginner would immediately understand
+- DO: "reach your arms out wide", "soften your knees", "lift your chest", "stretch your right arm higher", "press your back foot firmly down"
+- DON'T: "increase the angle at your elbow", "set your knee flexion to 90°", "adjust hip abduction", "extend the joint"
+- Always say "your" before a body part, not "the"
+- Second person present tense: "Stand with your feet...", "Bring your arms..."
+- Encouraging, not clinical
+
+Coverage rules:
+- Steps MUST span the full video chronologically — first step from early frames, last step from late frames
+- Do NOT pick adjacent frames that look nearly identical — each step must show meaningfully different body position
+- Ignore frames where instructor is clearly walking away or stopping the recording
+
+focusJoints must be camelCase from: leftKnee, rightKnee, leftHip, rightHip, leftElbow, rightElbow, leftShoulder, rightShoulder, leftAnkle, rightAnkle
 
 Return ONLY a JSON array, no other text:
 [

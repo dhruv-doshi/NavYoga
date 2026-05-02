@@ -53,13 +53,14 @@ export function derivePoseAngles(landmarks: Landmark[]): PoseAngleConstraint[] {
 
     const angleDeg = calcAngle(a, b, c);
 
+    const label = name.replace(/([A-Z])/g, " $1").trim().toLowerCase();
     constraints.push({
       joint: name,
       landmarks: [idxA, idxB, idxC],
       min: Math.max(0, Math.round(angleDeg - TOLERANCE)),
       max: Math.min(180, Math.round(angleDeg + TOLERANCE)),
-      correctionLow: `Increase your ${name.replace(/([A-Z])/g, " $1").trim().toLowerCase()} angle`,
-      correctionHigh: `Decrease your ${name.replace(/([A-Z])/g, " $1").trim().toLowerCase()} angle`,
+      correctionLow: `Open your ${label} more — stretch it out a little further`,
+      correctionHigh: `Soften your ${label} slightly — bring it in a bit`,
     });
   }
 

@@ -5,11 +5,14 @@ A browser-based yoga pose analysis tool. Point your camera at yourself, select a
 ## Features
 
 - **Real-time skeleton overlay** — MediaPipe BlazePose detects 33 body landmarks at up to 60 fps
-- **Pose comparison** — compare your live angles against reference ranges for 6 foundational poses
+- **Pose comparison** — compare your live angles against reference ranges for foundational poses
 - **Color-coded joints** — green joints are in range; red joints need correction
-- **Corrective feedback** — specific text instructions for each joint that's off
+- **Natural-language coaching** — step-by-step instructions and corrective cues in plain, encouraging language
 - **Alignment score** — radial gauge showing overall form percentage
-- **Zero backend** — everything runs in WebAssembly in the browser
+- **Step-by-step guidance** — LLM-powered sequential instructions matched to each body transition
+- **Instructor video upload** — upload up to 60s/50MB videos; AI extracts full-session pose steps automatically
+- **Mirrored reference** — master's image is flipped to match your camera view for easier comparison
+- **Downloadable pose report** — PNG split-screen comparison of expert form vs your attempt, generated at session end
 
 ## Supported Poses
 
@@ -63,6 +66,9 @@ src/
 │   ├── poseComparison.ts     # Compare angles vs pose reference
 │   ├── feedback.ts           # Generate correction strings
 │   ├── drawing.ts            # Canvas skeleton rendering
+│   ├── llm.ts                # Step generation prompt + LLM call
+│   ├── videoSampling.ts      # Frame timestamp computation helper
+│   ├── poseReport.ts         # Client-side PNG report generation
 │   └── types.ts              # Shared TypeScript types
 └── data/
     └── poses.json            # Pose definitions + angle constraints

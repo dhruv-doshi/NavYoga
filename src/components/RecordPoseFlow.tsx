@@ -6,6 +6,7 @@ import { generateSteps } from "@/lib/llm";
 import { detectPoseFromImage } from "@/lib/mediapipe";
 import { drawSkeleton } from "@/lib/drawing";
 import { CONFIG } from "@/lib/config";
+import { computeFrameSampleTimes } from "@/lib/videoSampling";
 import type { Landmark, PoseDefinition, VideoStep } from "@/lib/types";
 
 interface RecordPoseFlowProps {
@@ -50,6 +51,12 @@ function VideoUploadFlow({ onSave }: { onSave: (pose: PoseDefinition) => void })
       setPhase("error");
       return;
     }
+    const sizeMB = file.size / (1024 * 1024);
+    if (sizeMB > CONFIG.VIDEO_MAX_FILE_SIZE_MB) {
+      setErrorMsg(`Video must be under ${CONFIG.VIDEO_MAX_FILE_SIZE_MB}MB. Yours is ${Math.round(sizeMB)}MB.`);
+      setPhase("error");
+      return;
+    }
     const url = URL.createObjectURL(file);
     setVideoUrl(url);
     setPhase("loaded");
@@ -86,17 +93,14 @@ function VideoUploadFlow({ onSave }: { onSave: (pose: PoseDefinition) => void })
       const ctx = canvas.getContext("2d")!;
 
       const totalFrames = CONFIG.VIDEO_ANALYSIS_FRAME_COUNT;
-      const trimStart = video.duration * 0.05;
-      const trimEnd = video.duration * 0.80;
-      const range = trimEnd - trimStart;
-      const interval = range / totalFrames;
+      const { times, trimStart } = computeFrameSampleTimes(video.duration, totalFrames, 0.05, 0.95);
       const frameDataUrls: string[] = [];
       const frameBase64: string[] = [];
       let landmarksForAngles: Landmark[] = [];
 
       for (let i = 0; i < totalFrames; i++) {
         setProgressLabel(`Extracting frames… ${i + 1}/${totalFrames}`);
-        await seekTo(video, trimStart + i * interval);
+        await seekTo(video, times[i]);
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
         frameDataUrls.push(dataUrl);
@@ -151,7 +155,7 @@ function VideoUploadFlow({ onSave }: { onSave: (pose: PoseDefinition) => void })
         const s = rawSteps[i];
         setProgressLabel(`Preparing step ${i + 1}/${rawSteps.length}…`);
         const frameIdx = Math.min(Math.max(0, s.frameIndex), frameDataUrls.length - 1);
-        const t = trimStart + frameIdx * interval;
+        const t = times[frameIdx] ?? trimStart;
         let stepLandmarks: Landmark[] = prevLandmarks;
         let stepConfidence = 0;
         try {

@@ -51,6 +51,8 @@ green/red joints)              text, headline)
 | `src/lib/drawing.ts` | Draw skeleton + colored joints on canvas |
 | `src/lib/types.ts` | All shared TypeScript interfaces |
 | `src/data/poses.json` | Static pose definitions with angle constraints |
+| `src/lib/videoSampling.ts` | Pure frame-timestamp computation (testable) |
+| `src/lib/poseReport.ts` | Client-side canvas report generator + annotation builder |
 | `src/components/Camera.tsx` | getUserMedia lifecycle, error handling |
 | `src/components/PoseCanvas.tsx` | RAF detection loop, bridges Camera → lib |
 | `src/components/PoseSelector.tsx` | Pose dropdown |
@@ -78,6 +80,31 @@ green/red joints)              text, headline)
 | `/` | Static (SSG) | No dynamic data, instant load |
 | `/poses` | Static (SSG) | Pose data from local JSON |
 | `/practice` | Client (CSR) | Camera + canvas cannot run server-side |
+
+## Instructor Video Upload
+
+When an instructor uploads a video (up to 60s / 50MB):
+1. File is validated by size (50MB cap) and duration (60s cap) before extraction begins
+2. `computeFrameSampleTimes()` (`src/lib/videoSampling.ts`) calculates 24 evenly-spaced seek timestamps covering 5–95% of the video
+3. Each frame is drawn to an offscreen canvas, exported as JPEG, and collected
+4. The frame batch is POSTed to `/api/analyze-video` (Node.js runtime; handles up to 10MB JSON)
+5. The vision model identifies key body-position transitions across the full video and returns step descriptors
+6. Per-step reference landmarks are extracted for precise mastery scoring during practice
+7. Step keyframe images are uploaded to Vercel Blob for persistence
+
+The master image shown in the sidebar is horizontally flipped (`transform: scaleX(-1)`) to match the student's mirrored webcam view.
+
+## Downloadable Pose Report
+
+At session completion, the app:
+1. Captures a JPEG snapshot from the live webcam `<video>` element
+2. On "Download Pose Report" click, calls `generatePoseReportBlob()` (`src/lib/poseReport.ts`)
+3. This function composites a 1400×820px PNG entirely in the browser using the Canvas API:
+   - Left half: master keyframe (mirrored to match student view)
+   - Right half: student snapshot
+   - Color-coded annotation list from `buildAnnotations()` (green ✓ correct, red ⚠ incorrect)
+   - Header with pose name + sanskrit, footer with score and date
+4. The Blob is downloaded immediately with no server round-trip
 
 ## Step-by-Step Instructions (LLM Coaching)
 

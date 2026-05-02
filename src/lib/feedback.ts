@@ -58,7 +58,7 @@ export function getFeedbackHeadline(score: number): string {
     score >= 80 ? "Great form — minor adjustments needed" :
     score >= 60 ? "Getting there — focus on the corrections below" :
     score >= 40 ? "Keep working — several joints need attention" :
-    "Work on your foundational alignment first";
+    "Take a breath and reset your base — let's work from the ground up";
 
   console.log("[Feedback] getFeedbackHeadline: score=%d → '%s'", score, headline);
   return headline;

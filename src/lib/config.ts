@@ -11,13 +11,14 @@ export const CONFIG = {
   VIDEO_FRAME_INTERVAL_MS: 500,
   VIDEO_MIN_FRAMES: 3,
   VIDEO_BEST_FRAMES_COUNT: 5,
-  VIDEO_MAX_DURATION_S: 15,
-  VIDEO_ANALYSIS_FRAME_COUNT: 10,
+  VIDEO_MAX_DURATION_S: 60,
+  VIDEO_MAX_FILE_SIZE_MB: 50,
+  VIDEO_ANALYSIS_FRAME_COUNT: 24,
   CLAUDE_VISION_MODEL: "qwen/qwen3.6-flash",
   STEPS_BY_DIFFICULTY: {
     beginner:     { min: 3, max: 4 },
     intermediate: { min: 4, max: 6 },
-    advanced:     { min: 5, max: 8 },
+    advanced:     { min: 5, max: 10 },
   },
   // Step advancement — stability-based
   MASTERY_THRESHOLD: 75,

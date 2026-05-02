@@ -122,7 +122,17 @@ describe("getFeedbackHeadline", () => {
     expect(getFeedbackHeadline(50)).toContain("Keep working");
   });
 
-  it("should return foundational at <40", () => {
-    expect(getFeedbackHeadline(30)).toContain("foundational");
+  it("should return reset/ground up message at <40", () => {
+    const headline = getFeedbackHeadline(30);
+    // The message encourages resetting from the ground up
+    expect(headline.toLowerCase()).toMatch(/breath|reset|ground/);
+  });
+
+  it("headlines do not contain technical angle terms", () => {
+    const scores = [0, 20, 40, 60, 80, 100];
+    for (const score of scores) {
+      const h = getFeedbackHeadline(score).toLowerCase();
+      expect(h).not.toMatch(/angle|degree|flexion|°/);
+    }
   });
 });

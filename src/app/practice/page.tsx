@@ -63,6 +63,7 @@ export default function PracticePage() {
   const [feedbackItems, setFeedbackItems] = useState<FeedbackItem[]>([]);
   const [feedbackHeadline, setFeedbackHeadline] = useState("");
 
+  const [studentSnapshot, setStudentSnapshot] = useState<string | null>(null);
   const { stepFlow, advanceIfReady, skipStep, currentStepReference } = useStepFlow(selectedPose, practiceStarted);
   const currentStepReferenceRef = useRef<Landmark[] | null>(null);
   currentStepReferenceRef.current = currentStepReference;
@@ -117,9 +118,23 @@ export default function PracticePage() {
     setFeedbackItems([]);
     setFeedbackHeadline("");
     setPracticeStarted(false);
+    setStudentSnapshot(null);
     cancelSpeech();
     clearJointHintGate();
   }, [selectedPose]);
+
+  // Capture student snapshot at the moment pose is completed
+  useEffect(() => {
+    if (!stepFlow.isComplete || studentSnapshot || !videoEl) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = videoEl.videoWidth || 640;
+    canvas.height = videoEl.videoHeight || 480;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.drawImage(videoEl, 0, 0);
+      setStudentSnapshot(canvas.toDataURL("image/jpeg", 0.9));
+    }
+  }, [stepFlow.isComplete, studentSnapshot, videoEl]);
 
   const handleLandmarks = useCallback((newLandmarks: Landmark[] | null) => {
     setLandmarks(newLandmarks);
@@ -435,7 +450,14 @@ export default function PracticePage() {
 
         {/* Step-by-step instructions while practicing */}
         {practiceStarted && selectedPose && (
-          <StepInstructionPanel stepFlow={stepFlow} onRetry={() => setPracticeStarted(true)} onSkipStep={skipStep} />
+          <StepInstructionPanel
+            stepFlow={stepFlow}
+            onRetry={() => setPracticeStarted(true)}
+            onSkipStep={skipStep}
+            comparisonResult={comparisonResult}
+            selectedPose={selectedPose}
+            studentSnapshot={studentSnapshot}
+          />
         )}
 
         {/* Score section — only show when actively practicing, not after pose is complete */}

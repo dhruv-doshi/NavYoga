@@ -1,13 +1,48 @@
-import type { StepFlowState } from "@/lib/types";
+import { useState, useCallback } from "react";
+import type { StepFlowState, PoseComparisonResult, PoseDefinition } from "@/lib/types";
+import { generatePoseReportBlob } from "@/lib/poseReport";
 
 interface StepInstructionPanelProps {
   stepFlow: StepFlowState;
   onRetry?: () => void;
   onSkipStep?: () => void;
+  comparisonResult?: PoseComparisonResult | null;
+  selectedPose?: PoseDefinition | null;
+  studentSnapshot?: string | null;
 }
 
-export function StepInstructionPanel({ stepFlow, onRetry, onSkipStep }: StepInstructionPanelProps) {
+export function StepInstructionPanel({ stepFlow, onRetry, onSkipStep, comparisonResult, selectedPose, studentSnapshot }: StepInstructionPanelProps) {
   const { steps, currentStepIndex, stepMasteryScore, isLoading, error, isComplete } = stepFlow;
+  const [reportLoading, setReportLoading] = useState(false);
+
+  const handleDownloadReport = useCallback(async () => {
+    if (!comparisonResult || !selectedPose || !studentSnapshot) return;
+    const masterUrl =
+      selectedPose.videoSteps?.[selectedPose.videoSteps.length - 1]?.imageUrl ??
+      selectedPose.imageUrl;
+    if (!masterUrl) return;
+    setReportLoading(true);
+    try {
+      const blob = await generatePoseReportBlob({
+        masterImageUrl: masterUrl,
+        studentImageUrl: studentSnapshot,
+        poseName: selectedPose.name,
+        sanskrit: selectedPose.sanskrit ?? "",
+        result: comparisonResult,
+        score: comparisonResult.score,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `pose-report-${selectedPose.id}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error("[StepPanel] report generation failed:", e);
+    } finally {
+      setReportLoading(false);
+    }
+  }, [comparisonResult, selectedPose, studentSnapshot]);
 
   if (isLoading) {
     return (
@@ -159,6 +194,22 @@ export function StepInstructionPanel({ stepFlow, onRetry, onSkipStep }: StepInst
           >
             Excellent work. Select a new pose to continue.
           </p>
+          {studentSnapshot && comparisonResult && selectedPose && (
+            <button
+              onClick={handleDownloadReport}
+              disabled={reportLoading}
+              className="w-full px-4 py-2 rounded-lg text-xs font-semibold transition-colors"
+              style={{
+                background: reportLoading ? "rgba(120,180,255,0.08)" : "rgba(120,180,255,0.15)",
+                border: "1px solid rgba(120,180,255,0.4)",
+                color: "rgba(120,180,255,0.9)",
+                fontFamily: "var(--font-dm-sans)",
+                cursor: reportLoading ? "not-allowed" : "pointer",
+              }}
+            >
+              {reportLoading ? "Generating report…" : "Download Pose Report"}
+            </button>
+          )}
         </div>
       </div>
     );
@@ -198,7 +249,7 @@ export function StepInstructionPanel({ stepFlow, onRetry, onSkipStep }: StepInst
               <img
                 src={currentStep.imageUrl}
                 alt={`Step ${currentStepIndex + 1}: ${currentStep.title}`}
-                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                style={{ width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)" }}
               />
             </div>
           )}
