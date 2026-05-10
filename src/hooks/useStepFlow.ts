@@ -5,6 +5,7 @@ import { computeStepMastery } from "@/lib/stepInstructions";
 import { speak, cancelSpeech } from "@/lib/tts";
 import { updateCustomPoseSteps } from "@/lib/customPoses";
 import { MasteryStabilityTracker } from "@/lib/masteryStability";
+import { CONFIG } from "@/lib/config";
 import type { PoseDefinition, PoseComparisonResult, StepFlowState, Landmark, VideoStep } from "@/lib/types";
 
 export function useStepFlow(pose: PoseDefinition | null, enabled: boolean = true) {
@@ -75,7 +76,9 @@ export function useStepFlow(pose: PoseDefinition | null, enabled: boolean = true
         const rawMastery = computeStepMastery(result, currentStep);
         const smoothed = trackerRef.current.update(rawMastery);
 
-        if (trackerRef.current.shouldAdvance()) {
+        const isFinalHold = currentStep.title.toLowerCase() === "final hold";
+        const minDwell = isFinalHold ? 5000 : CONFIG.MIN_STEP_DWELL_MS;
+        if (trackerRef.current.shouldAdvance(Date.now(), minDwell)) {
           const nextIndex = prev.currentStepIndex + 1;
           if (nextIndex >= prev.steps.length) {
             speak("Pose complete! Excellent work.");

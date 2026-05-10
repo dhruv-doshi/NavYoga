@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import type { StepFlowState, PoseComparisonResult, PoseDefinition } from "@/lib/types";
+import type { StepFlowState, PoseComparisonResult, PoseDefinition, Landmark } from "@/lib/types";
 import { generatePoseReportBlob } from "@/lib/poseReport";
 
 interface StepInstructionPanelProps {
@@ -9,9 +9,11 @@ interface StepInstructionPanelProps {
   comparisonResult?: PoseComparisonResult | null;
   selectedPose?: PoseDefinition | null;
   studentSnapshot?: string | null;
+  studentLandmarks?: Landmark[];
+  masterLandmarks?: Landmark[];
 }
 
-export function StepInstructionPanel({ stepFlow, onRetry, onSkipStep, comparisonResult, selectedPose, studentSnapshot }: StepInstructionPanelProps) {
+export function StepInstructionPanel({ stepFlow, onRetry, onSkipStep, comparisonResult, selectedPose, studentSnapshot, studentLandmarks, masterLandmarks }: StepInstructionPanelProps) {
   const { steps, currentStepIndex, stepMasteryScore, isLoading, error, isComplete } = stepFlow;
   const [reportLoading, setReportLoading] = useState(false);
 
@@ -30,6 +32,8 @@ export function StepInstructionPanel({ stepFlow, onRetry, onSkipStep, comparison
         sanskrit: selectedPose.sanskrit ?? "",
         result: comparisonResult,
         score: comparisonResult.score,
+        masterLandmarks,
+        studentLandmarks,
       });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

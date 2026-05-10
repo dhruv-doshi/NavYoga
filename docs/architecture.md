@@ -97,14 +97,25 @@ The master image shown in the sidebar is horizontally flipped (`transform: scale
 ## Downloadable Pose Report
 
 At session completion, the app:
-1. Captures a JPEG snapshot from the live webcam `<video>` element
+1. Captures a JPEG snapshot from the live webcam `<video>` element **and** stashes the last known landmark array (`landmarksRef`). Both are taken at the same moment `stepFlow.isComplete` fires.
 2. On "Download Pose Report" click, calls `generatePoseReportBlob()` (`src/lib/poseReport.ts`)
 3. This function composites a 1400×820px PNG entirely in the browser using the Canvas API:
-   - Left half: master keyframe (mirrored to match student view)
-   - Right half: student snapshot
-   - Color-coded annotation list from `buildAnnotations()` (green ✓ correct, red ⚠ incorrect)
+   - **Left half:** master keyframe in its native orientation (no horizontal mirror)
+     - Green stick-figure skeleton overlaid via `drawSkeletonInRect()` (`src/lib/drawing.ts`) using the pose's `referenceLandmarks` (last video step's per-step snapshot, falling back to pose-wide landmarks)
+   - **Right half:** student snapshot
+     - Colour-coded skeleton overlay: correct joints in green, incorrect joints in red with a circular halo; error-connected bones are thickened in red before the standard pass
+   - Color-coded annotation list from `buildAnnotations()` (green ✓ aligned, red ⚠ needs adjustment)
    - Header with pose name + sanskrit, footer with score and date
 4. The Blob is downloaded immediately with no server round-trip
+
+### Skeleton overlay internals
+
+`drawSkeletonInRect(ctx, landmarks, rect, opts)` is the shared primitive for static (off-canvas) skeleton rendering:
+- **No mirroring** — coordinates are `rect.x + lm.x * rect.w`, matching the unmirrored images
+- `tone: "expert"` draws bones in dark green; `tone: "student"` uses the lime-green palette + `jointColors`
+- `highlightErrors: true` runs an error pass first: any bone touching an error joint gets a thick red stroke, and the joint gets a red halo ring beneath it
+- Reuses `POSE_CONNECTIONS` and `LANDMARK_TO_JOINT` from the same module
+- Landmarks below `visibility = 0.5` are silently skipped — no errors thrown on partial detections
 
 ## Step-by-Step Instructions (LLM Coaching)
 

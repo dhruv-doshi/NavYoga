@@ -1,4 +1,6 @@
-import type { PoseComparisonResult } from "./types";
+import type { Landmark, PoseComparisonResult } from "./types";
+import { drawSkeletonInRect, type JointColorMap } from "./drawing";
+import { comparisonToJointColors } from "./poseComparison";
 
 export interface ReportAnnotation {
   joint: string;
@@ -59,10 +61,12 @@ export interface GenerateReportOptions {
   sanskrit: string;
   result: PoseComparisonResult;
   score: number;
+  masterLandmarks?: Landmark[];
+  studentLandmarks?: Landmark[];
 }
 
 export async function generatePoseReportBlob(opts: GenerateReportOptions): Promise<Blob> {
-  const { masterImageUrl, studentImageUrl, poseName, sanskrit, result, score } = opts;
+  const { masterImageUrl, studentImageUrl, poseName, sanskrit, result, score, masterLandmarks, studentLandmarks } = opts;
 
   const W = 1400;
   const H = 820;
@@ -119,39 +123,65 @@ export async function generatePoseReportBlob(opts: GenerateReportOptions): Promi
     ctx.fillText("Image unavailable", x + HALF_W / 2, PHOTO_Y + PHOTO_H / 2);
   };
 
-  const coverFit = (img: HTMLImageElement, x: number, y: number, w: number, h: number) => {
+  const coverFit = (
+    img: HTMLImageElement,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+  ): { x: number; y: number; w: number; h: number } => {
     const scale = Math.max(w / img.naturalWidth, h / img.naturalHeight);
     const sw = img.naturalWidth * scale;
     const sh = img.naturalHeight * scale;
-    ctx.drawImage(img, x + (w - sw) / 2, y + (h - sh) / 2, sw, sh);
+    const dx = x + (w - sw) / 2;
+    const dy = y + (h - sh) / 2;
+    ctx.drawImage(img, dx, dy, sw, sh);
+    return { x: dx, y: dy, w: sw, h: sh };
   };
 
-  // Draw master (left) — mirrored to match student's camera view
+  let masterDrawRect: { x: number; y: number; w: number; h: number } | null = null;
+  let studentDrawRect: { x: number; y: number; w: number; h: number } | null = null;
+
+  // Draw master (left) — native orientation, no mirror
   try {
     const masterImg = await loadImageEl(masterImageUrl);
     ctx.save();
     ctx.beginPath();
     ctx.rect(PAD, PHOTO_Y, HALF_W - PAD * 2, PHOTO_H);
     ctx.clip();
-    ctx.translate(PAD + HALF_W - PAD * 2, PHOTO_Y);
-    ctx.scale(-1, 1);
-    coverFit(masterImg, 0, 0, HALF_W - PAD * 2, PHOTO_H);
+    masterDrawRect = coverFit(masterImg, PAD, PHOTO_Y, HALF_W - PAD * 2, PHOTO_H);
     ctx.restore();
   } catch {
     drawPlaceholder(0);
   }
 
-  // Draw student (right) — already mirrored from webcam
+  // Draw student (right)
   try {
     const studentImg = await loadImageEl(studentImageUrl);
     ctx.save();
     ctx.beginPath();
     ctx.rect(HALF_W + PAD, PHOTO_Y, HALF_W - PAD * 2, PHOTO_H);
     ctx.clip();
-    coverFit(studentImg, HALF_W + PAD, PHOTO_Y, HALF_W - PAD * 2, PHOTO_H);
+    studentDrawRect = coverFit(studentImg, HALF_W + PAD, PHOTO_Y, HALF_W - PAD * 2, PHOTO_H);
     ctx.restore();
   } catch {
     drawPlaceholder(HALF_W);
+  }
+
+  // Overlay master skeleton (expert green)
+  if (masterLandmarks && masterLandmarks.length > 0 && masterDrawRect) {
+    drawSkeletonInRect(ctx, masterLandmarks, masterDrawRect, { tone: "expert", opacity: 0.9 });
+  }
+
+  // Overlay student skeleton with per-joint error highlighting
+  if (studentLandmarks && studentLandmarks.length > 0 && studentDrawRect) {
+    const jointColors: JointColorMap = comparisonToJointColors(result);
+    drawSkeletonInRect(ctx, studentLandmarks, studentDrawRect, {
+      tone: "student",
+      jointColors,
+      highlightErrors: true,
+      opacity: 0.9,
+    });
   }
 
   // Center divider

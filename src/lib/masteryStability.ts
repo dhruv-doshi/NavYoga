@@ -26,8 +26,8 @@ export class MasteryStabilityTracker {
     return this.ema;
   }
 
-  shouldAdvance(now = Date.now()): boolean {
-    if (now - this.stepEnteredAt < CONFIG.MIN_STEP_DWELL_MS) return false;
+  shouldAdvance(now = Date.now(), minDwellMs: number = CONFIG.MIN_STEP_DWELL_MS): boolean {
+    if (now - this.stepEnteredAt < minDwellMs) return false;
     if (this.window.length < CONFIG.HOLD_FRAMES_REQUIRED) return false;
     const trues = this.window.reduce((n, v) => n + (v ? 1 : 0), 0);
     return trues >= CONFIG.HOLD_FRAMES_REQUIRED;

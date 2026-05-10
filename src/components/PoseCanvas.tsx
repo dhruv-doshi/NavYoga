@@ -148,11 +148,18 @@ export default function PoseCanvas({
       lastHadLandmarksRef.current = hasLandmarks;
     }
 
-    // Clear canvas but don't draw skeleton overlay
     ctx.clearRect(0, 0, width, height);
 
     if (landmarks) {
       const angles = computeAngles(landmarks);
+
+      // Draw reference ghost skeleton underneath the live skeleton
+      const refLandmarks = referenceLandmarksRef.current;
+      if (showReferenceOverlayRef.current && refLandmarks && refLandmarks.length > 0) {
+        drawReferenceSkeleton(ctx, refLandmarks, width, height);
+      }
+
+      drawSkeleton(ctx, landmarks, width, height, jointColorsRef.current, false);
 
       if (showDebugAngles) {
         drawAngleOverlay(ctx, landmarks, angles, width, height);

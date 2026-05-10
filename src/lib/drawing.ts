@@ -52,6 +52,23 @@ export const COLORS = {
 export type JointColorMap = Record<string, "correct" | "error" | "default">;
 
 // ---------------------------------------------------------------------------
+// Shared landmark-index → joint-name mapping
+// ---------------------------------------------------------------------------
+
+export const LANDMARK_TO_JOINT: Record<number, string> = {
+  11: "leftShoulder",
+  12: "rightShoulder",
+  13: "leftElbow",
+  14: "rightElbow",
+  23: "leftHip",
+  24: "rightHip",
+  25: "leftKnee",
+  26: "rightKnee",
+  27: "leftAnkle",
+  28: "rightAnkle",
+};
+
+// ---------------------------------------------------------------------------
 // Main drawing function
 // ---------------------------------------------------------------------------
 
@@ -116,20 +133,6 @@ export function drawSkeleton(
   // -------------------------------------------------------------------------
   // Draw joint circles
   // -------------------------------------------------------------------------
-
-  // Map from landmark index → joint name (vertex landmark for each named joint)
-  const LANDMARK_TO_JOINT: Record<number, string> = {
-    11: "leftShoulder",
-    12: "rightShoulder",
-    13: "leftElbow",
-    14: "rightElbow",
-    23: "leftHip",
-    24: "rightHip",
-    25: "leftKnee",
-    26: "rightKnee",
-    27: "leftAnkle",
-    28: "rightAnkle",
-  };
 
   for (let i = 0; i < landmarks.length; i++) {
     const lm = landmarks[i];
@@ -296,5 +299,124 @@ export function drawAngleOverlay(
 
     ctx.fillStyle = "rgba(195,255,90,0.9)";
     ctx.fillText(label, x, y - 10);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Static (non-mirrored) skeleton for fixed-rect overlays (e.g. report PNG)
+// ---------------------------------------------------------------------------
+
+export interface StaticSkeletonOptions {
+  jointColors?: JointColorMap;
+  /** "expert" → green palette; "student" → COLORS.bone + jointColors */
+  tone?: "expert" | "student";
+  /** Draw red halos + thick red bones around error joints */
+  highlightErrors?: boolean;
+  opacity?: number;
+}
+
+/**
+ * Draw a skeleton inside an arbitrary pixel rect without mirroring.
+ * Landmarks are normalized [0,1] relative to the image captured at that rect.
+ * Does NOT clear the canvas.
+ */
+export function drawSkeletonInRect(
+  ctx: CanvasRenderingContext2D,
+  landmarks: Landmark[],
+  rect: { x: number; y: number; w: number; h: number },
+  opts: StaticSkeletonOptions = {},
+): void {
+  if (!landmarks || landmarks.length === 0) return;
+
+  const { jointColors, tone = "student", highlightErrors = false, opacity = 0.95 } = opts;
+  const VISIBILITY_THRESHOLD = 0.5;
+
+  const px = (lm: Landmark) => ({
+    x: rect.x + lm.x * rect.w,
+    y: rect.y + lm.y * rect.h,
+  });
+
+  const expertBone = `rgba(45, 122, 45, ${opacity})`;
+  const expertJoint = `rgba(45, 122, 45, ${opacity})`;
+  const defaultBone = `rgba(195, 255, 90, ${opacity * 0.85})`;
+  const defaultJoint = `rgba(195, 255, 90, ${opacity})`;
+
+  // Determine which joints are errors for highlight pass
+  const errorJoints = new Set<number>();
+  if (highlightErrors && jointColors) {
+    for (const [idxStr, name] of Object.entries(LANDMARK_TO_JOINT)) {
+      if (jointColors[name] === "error") errorJoints.add(Number(idxStr));
+    }
+  }
+
+  // ── Error highlight pass (red halos) ──────────────────────────────────────
+  if (errorJoints.size > 0) {
+    ctx.lineWidth = 4;
+    for (const [idxA, idxB] of POSE_CONNECTIONS) {
+      if (!errorJoints.has(idxA) && !errorJoints.has(idxB)) continue;
+      const a = landmarks[idxA];
+      const b = landmarks[idxB];
+      if (!a || !b) continue;
+      if ((a.visibility ?? 1) < VISIBILITY_THRESHOLD || (b.visibility ?? 1) < VISIBILITY_THRESHOLD) continue;
+      const pA = px(a);
+      const pB = px(b);
+      ctx.beginPath();
+      ctx.moveTo(pA.x, pA.y);
+      ctx.lineTo(pB.x, pB.y);
+      ctx.strokeStyle = `rgba(192, 97, 74, ${opacity * 0.6})`;
+      ctx.stroke();
+    }
+  }
+
+  // ── Standard bone pass ─────────────────────────────────────────────────────
+  ctx.lineCap = "round";
+  ctx.lineWidth = 2.5;
+  for (const [idxA, idxB] of POSE_CONNECTIONS) {
+    const a = landmarks[idxA];
+    const b = landmarks[idxB];
+    if (!a || !b) continue;
+    if ((a.visibility ?? 1) < VISIBILITY_THRESHOLD || (b.visibility ?? 1) < VISIBILITY_THRESHOLD) continue;
+    const pA = px(a);
+    const pB = px(b);
+    ctx.beginPath();
+    ctx.moveTo(pA.x, pA.y);
+    ctx.lineTo(pB.x, pB.y);
+    ctx.strokeStyle = tone === "expert" ? expertBone : defaultBone;
+    ctx.stroke();
+  }
+
+  // ── Joint circles ──────────────────────────────────────────────────────────
+  for (let i = 0; i < landmarks.length; i++) {
+    const lm = landmarks[i];
+    if (!lm || (lm.visibility ?? 1) < VISIBILITY_THRESHOLD) continue;
+    const { x, y } = px(lm);
+
+    let fillColor = tone === "expert" ? expertJoint : defaultJoint;
+    if (jointColors) {
+      const name = LANDMARK_TO_JOINT[i];
+      if (name) {
+        const status = jointColors[name];
+        if (status === "correct") fillColor = `rgba(95, 173, 91, ${opacity})`;
+        else if (status === "error") fillColor = `rgba(192, 97, 74, ${opacity})`;
+      }
+    }
+
+    // Red halo ring for error joints
+    if (errorJoints.has(i)) {
+      ctx.beginPath();
+      ctx.arc(x, y, 8, 0, 2 * Math.PI);
+      ctx.fillStyle = `rgba(192, 97, 74, ${opacity * 0.25})`;
+      ctx.fill();
+    }
+
+    ctx.beginPath();
+    ctx.arc(x, y, 4, 0, 2 * Math.PI);
+    ctx.fillStyle = fillColor;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(x, y, 2, 0, 2 * Math.PI);
+    ctx.fillStyle = `rgba(12, 15, 10, ${opacity * 0.8})`;
+    ctx.fill();
   }
 }

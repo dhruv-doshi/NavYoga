@@ -19,7 +19,6 @@ import Camera from "@/components/Camera";
 import PoseCanvas from "@/components/PoseCanvas";
 import PoseSelector from "@/components/PoseSelector";
 import FeedbackPanel from "@/components/FeedbackPanel";
-import ScoreDisplay from "@/components/ScoreDisplay";
 import { RecordPoseFlow } from "@/components/RecordPoseFlow";
 import { StepInstructionPanel } from "@/components/StepInstructionPanel";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -64,6 +63,8 @@ export default function PracticePage() {
   const [feedbackHeadline, setFeedbackHeadline] = useState("");
 
   const [studentSnapshot, setStudentSnapshot] = useState<string | null>(null);
+  const [studentLandmarksAtComplete, setStudentLandmarksAtComplete] = useState<Landmark[] | null>(null);
+  const landmarksRef = useRef<Landmark[] | null>(null);
   const { stepFlow, advanceIfReady, skipStep, currentStepReference } = useStepFlow(selectedPose, practiceStarted);
   const currentStepReferenceRef = useRef<Landmark[] | null>(null);
   currentStepReferenceRef.current = currentStepReference;
@@ -119,11 +120,12 @@ export default function PracticePage() {
     setFeedbackHeadline("");
     setPracticeStarted(false);
     setStudentSnapshot(null);
+    setStudentLandmarksAtComplete(null);
     cancelSpeech();
     clearJointHintGate();
   }, [selectedPose]);
 
-  // Capture student snapshot at the moment pose is completed
+  // Capture student snapshot + landmarks at the moment pose is completed
   useEffect(() => {
     if (!stepFlow.isComplete || studentSnapshot || !videoEl) return;
     const canvas = document.createElement("canvas");
@@ -134,9 +136,13 @@ export default function PracticePage() {
       ctx.drawImage(videoEl, 0, 0);
       setStudentSnapshot(canvas.toDataURL("image/jpeg", 0.9));
     }
+    if (landmarksRef.current) {
+      setStudentLandmarksAtComplete(landmarksRef.current);
+    }
   }, [stepFlow.isComplete, studentSnapshot, videoEl]);
 
   const handleLandmarks = useCallback((newLandmarks: Landmark[] | null) => {
+    landmarksRef.current = newLandmarks;
     setLandmarks(newLandmarks);
     const pose = selectedPoseRef.current;
     if (!pose || !newLandmarks || newLandmarks.length === 0) return;
@@ -180,7 +186,6 @@ export default function PracticePage() {
   }, [advanceIfReady]);
 
   const poseDetected = landmarks !== null && landmarks.length > 0;
-  const score = comparisonResult?.score ?? 0;
   const allPoses = [...POSES, ...customPoses, ...publicPoses];
 
   const handleDeletePose = async (id: string) => {
@@ -254,8 +259,8 @@ export default function PracticePage() {
             jointColors={jointColors}
             onLandmarks={handleLandmarks}
             onAngles={handleAngles}
-            referenceLandmarks={null}
-            showReferenceOverlay={false}
+            referenceLandmarks={currentStepReference ?? selectedPose?.referenceLandmarks ?? null}
+            showReferenceOverlay={practiceStarted && !stepFlow.isComplete}
           />
         )}
 
@@ -285,23 +290,6 @@ export default function PracticePage() {
             </div>
           )}
 
-          {/* Score badge when a pose is selected and not yet complete */}
-          {selectedPose && comparisonResult && !stepFlow.isComplete && (
-            <div
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
-              style={{
-                background: "rgba(12,15,10,0.85)",
-                border: "1px solid rgba(255,255,255,0.15)",
-                color: score >= 80 ? "var(--joint-correct)" : score >= 50 ? "#c89630" : "var(--joint-error)",
-                fontFamily: "var(--font-dm-sans)",
-                backdropFilter: "blur(10px)",
-                textShadow: "0 1px 3px rgba(0,0,0,0.6)",
-                transition: "color 400ms ease",
-              }}
-            >
-              {score}% mastery
-            </div>
-          )}
         </div>
 
         {/* ── Top-right controls ── */}
@@ -457,24 +445,15 @@ export default function PracticePage() {
             comparisonResult={comparisonResult}
             selectedPose={selectedPose}
             studentSnapshot={studentSnapshot}
+            studentLandmarks={studentLandmarksAtComplete ?? undefined}
+            masterLandmarks={
+              (selectedPose?.videoSteps?.length
+                ? selectedPose.videoSteps[selectedPose.videoSteps.length - 1].referenceLandmarks
+                : selectedPose?.referenceLandmarks) ?? undefined
+            }
           />
         )}
 
-        {/* Score section — only show when actively practicing, not after pose is complete */}
-        {practiceStarted && !stepFlow.isComplete && (
-          <div
-            className="p-5 flex flex-col gap-3"
-            style={{ borderBottom: "1px solid var(--border)" }}
-          >
-            <h2
-              className="text-xs font-semibold uppercase tracking-widest"
-              style={{ color: "var(--text-tertiary)", fontFamily: "var(--font-dm-sans)" }}
-            >
-              Pose Mastery Score
-            </h2>
-            <ScoreDisplay score={score} poseSelected={!!selectedPose} analyzed={comparisonResult !== null} />
-          </div>
-        )}
 
         {/* Feedback panel (shown when practicing and step flow not available) */}
         {practiceStarted && !stepFlow.steps.length && (

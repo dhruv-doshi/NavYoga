@@ -1,6 +1,6 @@
 export const CONFIG = {
   DETECTION_FPS: 10,
-  POSE_MASTERY_TOLERANCE: 5,
+  POSE_MASTERY_TOLERANCE: 20,
   MAX_FEEDBACK_ITEMS: 3,
   FEEDBACK_WARNING_THRESHOLD: 15,
   TTS_MIN_GAP_MS: 8000,
@@ -21,7 +21,7 @@ export const CONFIG = {
     advanced:     { min: 5, max: 10 },
   },
   // Step advancement — stability-based
-  MASTERY_THRESHOLD: 75,
+  MASTERY_THRESHOLD: 30,
   MASTERY_EMA_ALPHA: 0.25,
   HOLD_WINDOW_FRAMES: 20,
   HOLD_FRAMES_REQUIRED: 16,

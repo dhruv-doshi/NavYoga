@@ -13,6 +13,21 @@ interface RecordPoseFlowProps {
   onSave: (pose: PoseDefinition) => void;
 }
 
+/** Draw a video frame centred on a white 16:9 canvas without stretching. */
+function drawFramePadded(
+  ctx: CanvasRenderingContext2D,
+  video: HTMLVideoElement,
+  canvasW: number,
+  canvasH: number,
+): void {
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvasW, canvasH);
+  const scale = Math.min(canvasW / video.videoWidth, canvasH / video.videoHeight);
+  const dw = video.videoWidth * scale;
+  const dh = video.videoHeight * scale;
+  ctx.drawImage(video, (canvasW - dw) / 2, (canvasH - dh) / 2, dw, dh);
+}
+
 async function seekTo(video: HTMLVideoElement, time: number): Promise<void> {
   return new Promise((resolve) => {
     const onSeeked = () => {
@@ -88,8 +103,16 @@ function VideoUploadFlow({ onSave }: { onSave: (pose: PoseDefinition) => void })
 
     try {
       const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth || 480;
-      canvas.height = video.videoHeight || 360;
+      const TARGET_AR = 16 / 9;
+      const vw = video.videoWidth || 480;
+      const vh = video.videoHeight || 360;
+      if (vw / vh >= TARGET_AR) {
+        canvas.width = vw;
+        canvas.height = Math.round(vw / TARGET_AR);
+      } else {
+        canvas.height = vh;
+        canvas.width = Math.round(vh * TARGET_AR);
+      }
       const ctx = canvas.getContext("2d")!;
 
       const totalFrames = CONFIG.VIDEO_ANALYSIS_FRAME_COUNT;
@@ -101,7 +124,7 @@ function VideoUploadFlow({ onSave }: { onSave: (pose: PoseDefinition) => void })
       for (let i = 0; i < totalFrames; i++) {
         setProgressLabel(`Extracting frames… ${i + 1}/${totalFrames}`);
         await seekTo(video, times[i]);
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        drawFramePadded(ctx, video, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
         frameDataUrls.push(dataUrl);
         frameBase64.push(dataUrl.split(",")[1]);
@@ -160,7 +183,7 @@ function VideoUploadFlow({ onSave }: { onSave: (pose: PoseDefinition) => void })
         let stepConfidence = 0;
         try {
           await seekTo(video, t);
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          drawFramePadded(ctx, video, canvas.width, canvas.height);
           const lm = await detectPoseFromImage(canvas);
           if (lm && lm.length > 0) {
             stepLandmarks = lm;
