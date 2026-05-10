@@ -86,3 +86,10 @@ src/
 - **MediaPipe Tasks Vision** — browser-native pose detection
 - **TypeScript** — strict mode throughout
 - **Tailwind CSS v4**
+
+
+---
+
+## About
+
+Built by [Dhruv Doshi](https://dhruvdoshi.vercel.app) — see more projects on the [portfolio](https://dhruvdoshi.vercel.app/projects) or connect on [LinkedIn](https://www.linkedin.com/in/dhruvdoshi/).
